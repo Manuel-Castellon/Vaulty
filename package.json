@@ -12,6 +12,9 @@
     "backend:dev": "npm run dev --workspace=packages/backend"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "dependencies": {
+    "expo-dev-client": "~4.0.29"
   }
 }
