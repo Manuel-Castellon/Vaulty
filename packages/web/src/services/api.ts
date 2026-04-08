@@ -11,8 +11,13 @@ async function request<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
+  const { getIdToken } = await import("./auth");
+  const token = await getIdToken();
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: token } : {}),
+    },
     ...options,
   });
   if (!res.ok) {

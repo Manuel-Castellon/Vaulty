@@ -33,6 +33,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     isActive: true,
     usageCount: 0,
     maxUsage: input.maxUsage,
+    amountUsed: 0,
+    imageUrl: input.imageUrl,
+    qrCode: input.qrCode,
     createdAt: now,
     updatedAt: now,
   };

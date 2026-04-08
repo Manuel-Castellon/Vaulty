@@ -11,6 +11,9 @@ export interface Coupon {
   isActive: boolean;
   usageCount: number;
   maxUsage?: number;
+  amountUsed?: number; // for fixed-value coupons: how much of discount.value has been used
+  imageUrl?: string;   // S3 URL of the coupon image
+  qrCode?: string;     // QR code data or URL extracted from the coupon
   createdAt: string;
   updatedAt: string;
 }
@@ -37,10 +40,13 @@ export interface CreateCouponInput {
   category: CouponCategory;
   expiresAt?: string;
   maxUsage?: number;
+  imageUrl?: string;
+  qrCode?: string;
 }
 
 export interface UpdateCouponInput extends Partial<CreateCouponInput> {
   isActive?: boolean;
+  amountUsed?: number;
 }
 
 export interface CouponListResponse {

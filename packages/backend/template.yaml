@@ -1,16 +1,18 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Coupon Manager API
+Description: Vaulty Coupon Manager API
 
 Globals:
   Function:
-    Runtime: nodejs18.x
+    Runtime: nodejs20.x
     Timeout: 10
     MemorySize: 256
     Environment:
       Variables:
         TABLE_NAME: !Ref CouponsTable
         REGION: !Ref AWS::Region
+        USER_POOL_ID: !Ref CognitoUserPool
+        IMAGES_BUCKET: !Ref CouponImagesBucket
   Api:
     Cors:
       AllowOrigin: "'*'"
@@ -21,8 +23,26 @@ Parameters:
   Stage:
     Type: String
     Default: dev
+  GoogleClientId:
+    Type: String
+    Default: ""
+    Description: Google OAuth 2.0 Client ID (leave empty to skip Google SSO)
+  GoogleClientSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Google OAuth 2.0 Client Secret
+  WebAppUrl:
+    Type: String
+    Default: "http://localhost:5173"
+    Description: Web app origin URL (used for OAuth callback)
+
+Conditions:
+  HasGoogleProvider: !Not [!Equals [!Ref GoogleClientId, ""]]
 
 Resources:
+
+  # ── Database ──────────────────────────────────────────────────────────────
   CouponsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -42,10 +62,111 @@ Resources:
         AttributeName: ttl
         Enabled: true
 
+  # ── Auth (Cognito) ────────────────────────────────────────────────────────
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "vaulty-users-${Stage}"
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: false
+
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "vaulty-${Stage}-${AWS::AccountId}"
+      UserPoolId: !Ref CognitoUserPool
+
+  CognitoGoogleProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Condition: HasGoogleProvider
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: "email openid profile"
+      AttributeMapping:
+        email: email
+        name: name
+        picture: picture
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: CognitoGoogleProvider
+    Properties:
+      ClientName: !Sub "vaulty-client-${Stage}"
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+        - !If [HasGoogleProvider, Google, !Ref AWS::NoValue]
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      CallbackURLs:
+        - !Sub "${WebAppUrl}/auth/callback"
+        - "http://localhost:5173/auth/callback"
+        - "http://localhost:3000/auth/callback"
+      LogoutURLs:
+        - !Sub "${WebAppUrl}/"
+        - "http://localhost:5173/"
+        - "http://localhost:3000/"
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+
+  # ── Storage (S3) ──────────────────────────────────────────────────────────
+  CouponImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "vaulty-images-${Stage}-${AWS::AccountId}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, PUT]
+            AllowedOrigins: ["*"]
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOrphanedUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  # ── Coupon Lambdas ────────────────────────────────────────────────────────
   ListCouponsFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
-      Handler: src/functions/coupons/list.handler
+      Handler: list.handler
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref CouponsTable
@@ -58,8 +179,10 @@ Resources:
 
   GetCouponFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
-      Handler: src/functions/coupons/get.handler
+      Handler: get.handler
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref CouponsTable
@@ -72,8 +195,10 @@ Resources:
 
   CreateCouponFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
-      Handler: src/functions/coupons/create.handler
+      Handler: create.handler
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CouponsTable
@@ -86,8 +211,10 @@ Resources:
 
   UpdateCouponFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
-      Handler: src/functions/coupons/update.handler
+      Handler: update.handler
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CouponsTable
@@ -100,8 +227,10 @@ Resources:
 
   DeleteCouponFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
-      Handler: src/functions/coupons/delete.handler
+      Handler: delete.handler
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CouponsTable
@@ -112,9 +241,37 @@ Resources:
             Path: /coupons/{id}
             Method: DELETE
 
+  # ── Upload Lambda ─────────────────────────────────────────────────────────
+  GetUploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: presigned-url.handler
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref CouponImagesBucket
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /upload-url
+            Method: GET
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
   CouponsTableName:
     Value: !Ref CouponsTable
+  UserPoolId:
+    Description: Cognito User Pool ID (needed by frontend)
+    Value: !Ref CognitoUserPool
+  UserPoolClientId:
+    Description: Cognito App Client ID (needed by frontend)
+    Value: !Ref CognitoUserPoolClient
+  CognitoDomain:
+    Description: Cognito hosted UI domain (needed by frontend for Google SSO)
+    Value: !Sub "vaulty-${Stage}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com"
+  ImagesBucketName:
+    Value: !Ref CouponImagesBucket

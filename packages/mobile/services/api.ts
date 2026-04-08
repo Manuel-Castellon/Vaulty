@@ -8,8 +8,13 @@ import type {
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:3001";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const { getIdToken } = await import("./auth");
+  const token = await getIdToken();
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: token } : {}),
+    },
     ...options,
   });
   if (!res.ok) {

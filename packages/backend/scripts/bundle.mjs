@@ -1,0 +1,29 @@
+import * as esbuild from "esbuild";
+import { mkdirSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+const functions = [
+  { name: "ListCouponsFunction",   entry: "src/functions/coupons/list.ts",         out: "list.js" },
+  { name: "GetCouponFunction",     entry: "src/functions/coupons/get.ts",          out: "get.js" },
+  { name: "CreateCouponFunction",  entry: "src/functions/coupons/create.ts",       out: "create.js" },
+  { name: "UpdateCouponFunction",  entry: "src/functions/coupons/update.ts",       out: "update.js" },
+  { name: "DeleteCouponFunction",  entry: "src/functions/coupons/delete.ts",       out: "delete.js" },
+  { name: "GetUploadUrlFunction",  entry: "src/functions/upload/presigned-url.ts", out: "presigned-url.js" },
+];
+
+for (const fn of functions) {
+  const outDir = resolve(root, "dist", fn.name);
+  mkdirSync(outDir, { recursive: true });
+  await esbuild.build({
+    entryPoints: [resolve(root, fn.entry)],
+    bundle: true,
+    platform: "node",
+    target: "es2020",
+    external: ["@aws-sdk/*"],
+    outfile: resolve(outDir, fn.out),
+  });
+  console.log(`bundled ${fn.name}`);
+}

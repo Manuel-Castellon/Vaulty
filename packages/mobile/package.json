@@ -11,6 +11,7 @@
   "dependencies": {
     "@coupon/shared": "*",
     "@expo/vector-icons": "^14.0.0",
+    "amazon-cognito-identity-js": "^6.3.0",
     "expo": "~51.0.0",
     "expo-router": "~3.5.0",
     "expo-status-bar": "~1.12.0",
