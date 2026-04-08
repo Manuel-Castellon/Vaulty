@@ -1,0 +1,23 @@
+name: Web
+
+on:
+  push:
+    branches: [main]
+    paths: ["packages/web/**", "shared/**"]
+  pull_request:
+    paths: ["packages/web/**", "shared/**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck --workspace=packages/web
+      - run: npm run build --workspace=packages/web
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}

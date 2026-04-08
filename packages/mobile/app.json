@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Coupon Manager",
+    "slug": "coupon-manager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "couponmanager",
+    "platforms": ["android"],
+    "android": {
+      "package": "com.couponmanager.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "plugins": ["expo-router"]
+  }
+}

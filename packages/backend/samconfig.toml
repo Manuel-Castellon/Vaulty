@@ -1,0 +1,9 @@
+[default.deploy.parameters]
+stack_name = "coupon-manager"
+resolve_s3 = true
+s3_prefix = "coupon-manager"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=prod"
+confirm_changeset = false
+fail_on_empty_changeset = false

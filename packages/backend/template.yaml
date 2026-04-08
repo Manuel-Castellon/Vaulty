@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Coupon Manager API
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 10
+    MemorySize: 256
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref CouponsTable
+        REGION: !Ref AWS::Region
+  Api:
+    Cors:
+      AllowOrigin: "'*'"
+      AllowHeaders: "'Content-Type,Authorization'"
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+
+Resources:
+  CouponsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "coupons-${Stage}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  ListCouponsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/coupons/list.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /coupons
+            Method: GET
+
+  GetCouponFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/coupons/get.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /coupons/{id}
+            Method: GET
+
+  CreateCouponFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/coupons/create.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /coupons
+            Method: POST
+
+  UpdateCouponFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/coupons/update.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /coupons/{id}
+            Method: PUT
+
+  DeleteCouponFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/functions/coupons/delete.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /coupons/{id}
+            Method: DELETE
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+  CouponsTableName:
+    Value: !Ref CouponsTable

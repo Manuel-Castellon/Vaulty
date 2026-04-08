@@ -1,0 +1,17 @@
+{
+  "name": "vaulty",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "shared"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace=packages/web",
+    "mobile": "npm run start --workspace=packages/mobile",
+    "backend:deploy": "npm run deploy --workspace=packages/backend",
+    "backend:dev": "npm run dev --workspace=packages/backend"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

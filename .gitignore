@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.expo/
+*.local
+.env
+.env.*
+!.env.example
+.aws-sam/
+.serverless/
+*.js.map
+coverage/
+.DS_Store
+android/
+ios/
+*.log

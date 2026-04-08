@@ -1,0 +1,26 @@
+{
+  "name": "@coupon/backend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "sam local start-api --env-vars env.json",
+    "build": "sam build",
+    "deploy": "sam deploy --guided",
+    "deploy:ci": "sam deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@coupon/shared": "*",
+    "@types/aws-lambda": "^8.10.0",
+    "@types/uuid": "^9.0.0",
+    "aws-sam-local": "*",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.4.0"
+  }
+}
