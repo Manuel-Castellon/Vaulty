@@ -1,0 +1,274 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  color: #007aff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.backBtn:hover {
+  text-decoration: underline;
+}
+
+.center {
+  text-align: center;
+  color: #999;
+  margin-top: 60px;
+  font-size: 15px;
+}
+
+/* Hero card */
+.heroCard {
+  background: linear-gradient(135deg, #007aff 0%, #0051a8 100%);
+  border-radius: 16px;
+  padding: 28px;
+  color: #fff;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.heroCard::before {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.heroImage {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.heroTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.heroTitle {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0;
+  flex: 1;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  text-transform: capitalize;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.heroStore {
+  font-size: 14px;
+  opacity: 0.8;
+  margin: 0 0 16px;
+}
+
+.heroDiscount {
+  font-size: 38px;
+  font-weight: 900;
+  margin: 0 0 12px;
+  letter-spacing: -1px;
+}
+
+.codeBox {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 14px;
+  gap: 8px;
+}
+
+.codeLabel {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.7;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.codeValue {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  font-family: monospace;
+}
+
+/* Details card */
+.detailsCard {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  width: 110px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.rowValue {
+  font-size: 14px;
+  color: #111;
+  flex: 1;
+}
+
+.expiryWarn {
+  color: #ff9500;
+  font-weight: 600;
+}
+
+.expiryExpired {
+  color: #ff3b30;
+  font-weight: 600;
+}
+
+/* Amount tracker */
+.trackerCard {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.trackerTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 14px;
+}
+
+.progressBar {
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progressFill {
+  height: 100%;
+  background: #007aff;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progressLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 16px;
+}
+
+.progressRemaining {
+  font-weight: 600;
+  color: #007aff;
+}
+
+.trackerInput {
+  display: flex;
+  gap: 10px;
+}
+
+.amountInput {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+
+.amountInput:focus {
+  border-color: #007aff;
+}
+
+.updateBtn {
+  background: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.updateBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.updateBtn:hover:not(:disabled) {
+  background: #0062cc;
+}
+
+/* Delete */
+.deleteSection {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.deleteBtn {
+  background: none;
+  border: 1px solid #ff3b30;
+  color: #ff3b30;
+  border-radius: 8px;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.deleteBtn:hover {
+  background: #fff0f0;
+}

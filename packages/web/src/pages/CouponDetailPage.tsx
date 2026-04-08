@@ -2,6 +2,18 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { Coupon } from "@coupon/shared";
 import { api } from "../services/api";
+import styles from "./couponDetail.module.css";
+
+function formatDiscount(coupon: Coupon): string {
+  if (coupon.discount.type === "percentage") {
+    return `${coupon.discount.value}% OFF`;
+  }
+  return `${coupon.discount.currency} ${coupon.discount.value} OFF`;
+}
+
+function daysUntilExpiry(expiresAt: string): number {
+  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
 
 export default function CouponDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,59 +50,110 @@ export default function CouponDetailPage() {
     setSaving(false);
   };
 
-  if (loading) return <p>Loading...</p>;
-  if (!coupon) return <p>Coupon not found.</p>;
+  if (loading) return <p className={styles.center}>Loading…</p>;
+  if (!coupon) return <p className={styles.center}>Coupon not found.</p>;
 
   const isFixed = coupon.discount.type === "fixed";
   const total = isFixed ? coupon.discount.value : null;
-  const remaining = total !== null ? total - (coupon.amountUsed ?? 0) : null;
+  const amountUsed = coupon.amountUsed ?? 0;
+  const remaining = total !== null ? total - amountUsed : null;
+  const progressPct = total ? Math.min((amountUsed / total) * 100, 100) : 0;
+
+  const isExpired = coupon.expiresAt ? new Date(coupon.expiresAt) < new Date() : false;
+  const days = coupon.expiresAt ? daysUntilExpiry(coupon.expiresAt) : null;
+  const expiringSoon = days !== null && days > 0 && days <= 7;
 
   return (
-    <div>
-      {coupon.imageUrl && (
-        <img src={coupon.imageUrl} alt="Coupon" style={{ maxWidth: "100%", marginBottom: 16 }} />
-      )}
-      <h1>{coupon.title}</h1>
-      <p><strong>Code:</strong> <code>{coupon.code}</code></p>
-      {coupon.qrCode && <p><strong>QR:</strong> {coupon.qrCode}</p>}
-      <p><strong>Store:</strong> {coupon.store}</p>
-      <p><strong>Category:</strong> {coupon.category}</p>
-      {coupon.description && <p>{coupon.description}</p>}
-      {coupon.expiresAt && (
-        <p><strong>Expires:</strong> {new Date(coupon.expiresAt).toLocaleDateString()}</p>
-      )}
+    <div className={styles.page}>
+      <button className={styles.backBtn} onClick={() => navigate("/")}>
+        ← Back
+      </button>
 
-      <p>
-        <strong>Discount:</strong>{" "}
-        {isFixed
-          ? `${coupon.discount.currency} ${coupon.discount.value}`
-          : `${coupon.discount.value}%`}
-      </p>
+      {/* Hero card */}
+      <div className={styles.heroCard}>
+        {coupon.imageUrl && (
+          <img src={coupon.imageUrl} alt="Coupon" className={styles.heroImage} />
+        )}
+        <div className={styles.heroTop}>
+          <h1 className={styles.heroTitle}>{coupon.title}</h1>
+          <span className={styles.badge}>{coupon.category}</span>
+        </div>
+        <p className={styles.heroStore}>{coupon.store}</p>
+        <p className={styles.heroDiscount}>{formatDiscount(coupon)}</p>
+        <div className={styles.codeBox}>
+          <span className={styles.codeLabel}>Code</span>
+          <span className={styles.codeValue}>{coupon.code}</span>
+        </div>
+      </div>
 
+      {/* Details */}
+      <div className={styles.detailsCard}>
+        {coupon.description && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Description</span>
+            <span className={styles.rowValue}>{coupon.description}</span>
+          </div>
+        )}
+        {coupon.expiresAt && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Expires</span>
+            <span className={`${styles.rowValue}${isExpired ? ` ${styles.expiryExpired}` : expiringSoon ? ` ${styles.expiryWarn}` : ""}`}>
+              {isExpired
+                ? `Expired ${new Date(coupon.expiresAt).toLocaleDateString()}`
+                : expiringSoon
+                ? `In ${days} day${days !== 1 ? "s" : ""} — ${new Date(coupon.expiresAt).toLocaleDateString()}`
+                : new Date(coupon.expiresAt).toLocaleDateString()}
+            </span>
+          </div>
+        )}
+        {coupon.qrCode && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>QR Code</span>
+            <span className={styles.rowValue}>{coupon.qrCode}</span>
+          </div>
+        )}
+        <div className={styles.row}>
+          <span className={styles.rowLabel}>Used</span>
+          <span className={styles.rowValue}>{coupon.usageCount} time{coupon.usageCount !== 1 ? "s" : ""}</span>
+        </div>
+      </div>
+
+      {/* Amount tracker (fixed-value coupons only) */}
       {isFixed && total !== null && (
-        <div>
-          <p>
-            <strong>Amount used:</strong> {coupon.discount.currency} {coupon.amountUsed ?? 0} of {total}
-            {" "}({coupon.discount.currency} {remaining} remaining)
-          </p>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div className={styles.trackerCard}>
+          <p className={styles.trackerTitle}>Amount Tracker</p>
+          <div className={styles.progressBar}>
+            <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
+          </div>
+          <div className={styles.progressLabels}>
+            <span>Used: {coupon.discount.currency} {amountUsed.toFixed(2)}</span>
+            <span className={styles.progressRemaining}>
+              {coupon.discount.currency} {(remaining ?? 0).toFixed(2)} remaining
+            </span>
+          </div>
+          <div className={styles.trackerInput}>
             <input
+              className={styles.amountInput}
               type="number"
               min={0}
               max={total}
+              step="0.01"
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
+              placeholder="Amount used"
             />
-            <button onClick={handleAmountSave} disabled={saving}>
-              {saving ? "Saving…" : "Update used amount"}
+            <button className={styles.updateBtn} onClick={handleAmountSave} disabled={saving}>
+              {saving ? "Saving…" : "Update"}
             </button>
           </div>
         </div>
       )}
 
-      <div style={{ marginTop: 24, display: "flex", gap: 8 }}>
-        <button onClick={handleDelete} style={{ color: "red" }}>Delete</button>
-        <button onClick={() => navigate("/")}>Back</button>
+      {/* Delete */}
+      <div className={styles.deleteSection}>
+        <button className={styles.deleteBtn} onClick={handleDelete}>
+          Delete Coupon
+        </button>
       </div>
     </div>
   );

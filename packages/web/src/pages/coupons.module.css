@@ -1,0 +1,202 @@
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.addBtn {
+  background: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.addBtn:hover {
+  background: #0062cc;
+}
+
+/* Loading / Error */
+.center {
+  text-align: center;
+  color: #999;
+  margin-top: 60px;
+  font-size: 15px;
+}
+
+.errorText {
+  color: #ff3b30;
+  font-size: 15px;
+  margin-top: 40px;
+  text-align: center;
+}
+
+/* Empty state */
+.empty {
+  text-align: center;
+  margin-top: 80px;
+  color: #999;
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: #333;
+}
+
+.emptyText {
+  font-size: 14px;
+  margin: 0 0 20px;
+}
+
+.emptyLink {
+  color: #007aff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* Grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Card */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.cardExpired {
+  opacity: 0.5;
+}
+
+.cardLink {
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  padding: 16px;
+  display: block;
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cardTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
+  flex: 1;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: #f0f4ff;
+  color: #007aff;
+  text-transform: capitalize;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badgeExpired {
+  background: #fff0f0;
+  color: #ff3b30;
+}
+
+.cardStore {
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 10px;
+}
+
+.discount {
+  font-size: 22px;
+  font-weight: 800;
+  color: #007aff;
+  margin: 0 0 6px;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.expiry {
+  font-size: 12px;
+  color: #999;
+}
+
+.expiryWarn {
+  font-size: 12px;
+  color: #ff9500;
+  font-weight: 600;
+}
+
+.cardFooter {
+  padding: 10px 16px;
+  border-top: 1px solid #f5f5f5;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: #ff3b30;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.deleteBtn:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

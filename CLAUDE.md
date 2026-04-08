@@ -93,6 +93,32 @@ All API types are in `shared/src/types/api.ts`. Always update shared types befor
 - Retailer integrations or affiliate links
 - Coupon recommendations/discovery
 
+## Deployed Resources (dev)
+
+- **API Gateway:** `https://l0tpj3eji8.execute-api.us-east-1.amazonaws.com/Prod` (stage is `Prod`, not `dev`)
+- **Cognito User Pool:** `us-east-1_Ijluog7Z8`
+- **Cognito Client:** `7i6d3i32b2ho56ts0fpt0fmcpq`
+- **Cognito Domain:** `vaulty-dev-829808296740.auth.us-east-1.amazoncognito.com`
+- **DynamoDB Table:** `coupons-dev`
+- **S3 Bucket:** `vaulty-images-dev-829808296740`
+- **CloudFormation Stack:** `coupon-manager` (us-east-1)
+
+Env vars for local dev live in `packages/web/.env` (not committed). Use `VITE_API_URL=/api` + `VITE_API_TARGET=<ApiUrl>` — Vite proxies `/api` to avoid CORS.
+
+SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter. The `Stage` parameter only affects resource names (e.g. DynamoDB table `coupons-dev`).
+
+## MVP Status (as of 2026-04-09)
+
+**Done:** Auth (email/password + Google SSO), coupon CRUD, amount tracking, AWS infrastructure deployed and working end-to-end.
+
+**To build:**
+- AI extraction (Grok primary, Gemini fallback) — needs API keys from Manuel
+- AI natural language search
+- Expiry notifications (EventBridge + Lambda)
+- UI polish
+- GitHub Actions CI/CD
+- Mobile auth parity (React Native screens)
+
 ## Conventions
 
 - TypeScript everywhere — no `any`, no skipping type checks
