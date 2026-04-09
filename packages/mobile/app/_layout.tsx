@@ -51,6 +51,17 @@ export default function RootLayout() {
     });
   }, []);
 
+  // Navigate to a coupon when user taps a push notification
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const couponId = response.notification.request.content.data?.couponId as string | undefined;
+      if (couponId) {
+        router.push(`/coupon/${couponId}`);
+      }
+    });
+    return () => subscription.remove();
+  }, [router]);
+
   useEffect(() => {
     if (!authChecked) return;
 

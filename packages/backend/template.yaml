@@ -15,6 +15,12 @@ Globals:
         IMAGES_BUCKET: !Ref CouponImagesBucket
         GEMINI_API_KEY: !Ref GeminiApiKey
   Api:
+    Auth:
+      DefaultAuthorizer: CognitoAuthorizer
+      Authorizers:
+        CognitoAuthorizer:
+          UserPoolArn: !GetAtt CognitoUserPool.Arn
+      AddDefaultAuthorizerToCorsPreflight: false
     Cors:
       AllowOrigin: "'*'"
       AllowHeaders: "'Content-Type,Authorization'"

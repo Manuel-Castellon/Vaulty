@@ -107,6 +107,8 @@ export const handler: ScheduledHandler = async () => {
     let title: string;
     let body: string;
 
+    let data: Record<string, unknown> | undefined;
+
     if (coupons.length === 1) {
       const c = coupons[0];
       title = "Expiring soon!";
@@ -114,6 +116,7 @@ export const handler: ScheduledHandler = async () => {
         daysLeft === 0
           ? `"${c.title}" at ${c.store} expires today!`
           : `"${c.title}" at ${c.store} expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}`;
+      data = { couponId: c.id };
     } else {
       title = `${coupons.length} items expiring soon`;
       body =
@@ -122,7 +125,7 @@ export const handler: ScheduledHandler = async () => {
           : `You have ${coupons.length} coupons or vouchers expiring within ${DAYS_BEFORE_EXPIRY} days`;
     }
 
-    messages.push({ to: pushToken, title, body });
+    messages.push({ to: pushToken, title, body, data });
   }
 
   await sendExpoPushNotifications(messages);
