@@ -21,6 +21,9 @@ build-GetUploadUrlFunction:
 build-ExpiryCheckFunction:
 	cp $(DIST)/ExpiryCheckFunction/expiry-check.js $(ARTIFACTS_DIR)/expiry-check.js
 
+build-RegisterTokenFunction:
+	cp $(DIST)/RegisterTokenFunction/register-token.js $(ARTIFACTS_DIR)/register-token.js
+
 build-ExtractFunction:
 	cp $(DIST)/ExtractFunction/extract.js $(ARTIFACTS_DIR)/extract.js
 

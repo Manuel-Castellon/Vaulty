@@ -248,6 +248,22 @@ Resources:
             Method: DELETE
 
   # ── Notifications Lambda ──────────────────────────────────────────────────
+  RegisterTokenFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: register-token.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /push-token
+            Method: POST
+
   ExpiryCheckFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -260,6 +276,8 @@ Resources:
           EXPIRY_DAYS_THRESHOLD: "3"
       Policies:
         - DynamoDBReadPolicy:
+            TableName: !Ref CouponsTable
+        - DynamoDBCrudPolicy:
             TableName: !Ref CouponsTable
       Events:
         Schedule:

@@ -21,7 +21,9 @@
       "Bash(npx expo:*)",
       "Bash(gh run:*)",
       "Bash(sam deploy:*)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(git remote:*)",
+      "Bash(gh secret:*)"
     ]
   }
 }

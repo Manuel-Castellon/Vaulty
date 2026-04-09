@@ -6,6 +6,7 @@ import type {
   ExtractionResult,
   ExtractRequest,
   SearchRequest,
+  RegisterTokenRequest,
 } from "@coupon/shared";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:3001";
@@ -28,6 +29,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  pushTokens: {
+    register: (req: RegisterTokenRequest) =>
+      request<{ success: boolean }>("/push-token", {
+        method: "POST",
+        body: JSON.stringify(req),
+      }),
+  },
   ai: {
     extract: (req: ExtractRequest) =>
       request<ExtractionResult>("/extract", {

@@ -12,7 +12,8 @@ const functions = [
   { name: "UpdateCouponFunction",  entry: "src/functions/coupons/update.ts",       out: "update.js" },
   { name: "DeleteCouponFunction",  entry: "src/functions/coupons/delete.ts",       out: "delete.js" },
   { name: "GetUploadUrlFunction",  entry: "src/functions/upload/presigned-url.ts", out: "presigned-url.js" },
-  { name: "ExpiryCheckFunction",  entry: "src/functions/notifications/expiry-check.ts", out: "expiry-check.js" },
+  { name: "ExpiryCheckFunction",    entry: "src/functions/notifications/expiry-check.ts",    out: "expiry-check.js" },
+  { name: "RegisterTokenFunction",  entry: "src/functions/notifications/register-token.ts",  out: "register-token.js" },
   { name: "ExtractFunction",      entry: "src/functions/ai/extract.ts",               out: "extract.js" },
   { name: "SearchFunction",       entry: "src/functions/ai/search.ts",                out: "search.js" },
 ];

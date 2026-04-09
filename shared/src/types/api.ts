@@ -36,6 +36,10 @@ export interface SearchRequest {
   query: string;
 }
 
+export interface RegisterTokenRequest {
+  token: string;
+}
+
 export interface ExtractRequest {
   /** Base64-encoded file content */
   data?: string;
