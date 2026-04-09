@@ -5,7 +5,7 @@ stack_name = "coupon-manager"
 resolve_s3 = true
 s3_prefix = "coupon-manager"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "Stage=\"dev\" GoogleClientId=\"772799251248-54645l59rud8uch84opelnteqhmb395t.apps.googleusercontent.com\" WebAppUrl=\"http://localhost:5173\""
+parameter_overrides = "Stage=\"dev\" GoogleClientId=\"772799251248-54645l59rud8uch84opelnteqhmb395t.apps.googleusercontent.com\" WebAppUrl=\"http://localhost:5173\" GeminiApiKey=\"REDACTED\""
 confirm_changeset = true
 fail_on_empty_changeset = false
 image_repositories = []

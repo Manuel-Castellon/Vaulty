@@ -20,3 +20,9 @@ build-GetUploadUrlFunction:
 
 build-ExpiryCheckFunction:
 	cp $(DIST)/ExpiryCheckFunction/expiry-check.js $(ARTIFACTS_DIR)/expiry-check.js
+
+build-ExtractFunction:
+	cp $(DIST)/ExtractFunction/extract.js $(ARTIFACTS_DIR)/extract.js
+
+build-SearchFunction:
+	cp $(DIST)/SearchFunction/search.js $(ARTIFACTS_DIR)/search.js
