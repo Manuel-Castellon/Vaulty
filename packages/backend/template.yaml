@@ -281,8 +281,6 @@ Resources:
         Variables:
           EXPIRY_DAYS_THRESHOLD: "3"
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref CouponsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref CouponsTable
       Events:

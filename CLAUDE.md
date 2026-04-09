@@ -109,15 +109,21 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 
 ## MVP Status (as of 2026-04-09)
 
-**Done:** Auth (email/password + Google SSO), coupon CRUD, amount tracking, AWS infrastructure deployed and working end-to-end.
+**Done:**
+- Auth (email/password + Google SSO), coupon CRUD, amount tracking
+- AI extraction (Gemini 2.5 Flash Lite) — photo/PDF/text → form auto-fill
+- AI natural language search — debounced, hides filters while active
+- Expiry push notifications — EventBridge daily scan → Expo Push API, deep-links to coupon on tap
+- Voucher support — itemType, faceValue/cost/eventDate/seatInfo fields
+- GitHub Actions CI/CD — typecheck + SAM deploy on every main push
+- Mobile auth parity — login, signup, confirm, Google SSO callback screens fully implemented
+- Cognito auth enforced at API Gateway level (DefaultAuthorizer)
+- AWS infrastructure deployed end-to-end
 
-**To build:**
-- AI extraction (Grok primary, Gemini fallback) — needs API keys from Manuel
-- AI natural language search
-- Expiry notifications (EventBridge + Lambda)
-- UI polish
-- GitHub Actions CI/CD
-- Mobile auth parity (React Native screens)
+**Remaining:**
+- EAS / Android cloud build (needs EXPO_TOKEN + EAS account setup)
+- UI polish pass
+- Web push notifications (post-MVP)
 
 ## Conventions
 
