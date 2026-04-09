@@ -17,3 +17,6 @@ build-DeleteCouponFunction:
 
 build-GetUploadUrlFunction:
 	cp $(DIST)/GetUploadUrlFunction/presigned-url.js $(ARTIFACTS_DIR)/presigned-url.js
+
+build-ExpiryCheckFunction:
+	cp $(DIST)/ExpiryCheckFunction/expiry-check.js $(ARTIFACTS_DIR)/expiry-check.js

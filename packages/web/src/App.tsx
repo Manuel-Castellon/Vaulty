@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, Link } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import RequireAuth from "./components/RequireAuth";
 import CouponsPage from "./pages/CouponsPage";
@@ -8,6 +8,7 @@ import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
 import ConfirmPage from "./pages/ConfirmPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
+import styles from "./app.module.css";
 
 export default function App() {
   const { isAuthenticated, loading, signOut } = useAuth();
@@ -15,18 +16,33 @@ export default function App() {
   return (
     <div>
       {isAuthenticated && !loading && (
-        <nav style={{ display: "flex", gap: 16, padding: "12px 24px", borderBottom: "1px solid #eee", alignItems: "center" }}>
-          <NavLink to="/" style={{ textDecoration: "none", fontWeight: 600 }}>My Coupons</NavLink>
-          <NavLink to="/add" style={{ textDecoration: "none", fontWeight: 600 }}>+ Add</NavLink>
-          <button
-            onClick={signOut}
-            style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#666" }}
-          >
+        <nav className={styles.nav}>
+          <Link to="/" className={styles.logo}>Vaulty</Link>
+          <div className={styles.navLinks}>
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                `${styles.navLink}${isActive ? ` ${styles.navLinkActive}` : ""}`
+              }
+            >
+              My Coupons
+            </NavLink>
+            <NavLink
+              to="/add"
+              className={({ isActive }) =>
+                `${styles.navLink}${isActive ? ` ${styles.navLinkActive}` : ""}`
+              }
+            >
+              + Add
+            </NavLink>
+          </div>
+          <button className={styles.signOutBtn} onClick={signOut}>
             Sign out
           </button>
         </nav>
       )}
-      <main style={{ padding: "24px" }}>
+      <main className={isAuthenticated && !loading ? styles.main : ""}>
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />

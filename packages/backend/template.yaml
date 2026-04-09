@@ -241,6 +241,28 @@ Resources:
             Path: /coupons/{id}
             Method: DELETE
 
+  # ── Notifications Lambda ──────────────────────────────────────────────────
+  ExpiryCheckFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: expiry-check.handler
+      Timeout: 300
+      Environment:
+        Variables:
+          EXPIRY_DAYS_THRESHOLD: "3"
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Description: Daily check for coupons expiring within 3 days
+            Enabled: true
+
   # ── Upload Lambda ─────────────────────────────────────────────────────────
   GetUploadUrlFunction:
     Type: AWS::Serverless::Function

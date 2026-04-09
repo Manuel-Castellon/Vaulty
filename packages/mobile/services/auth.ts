@@ -21,6 +21,26 @@ export function signUp(email: string, password: string): Promise<void> {
   });
 }
 
+export function confirmSignUp(email: string, code: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = new CognitoUser({ Username: email, Pool: pool });
+    user.confirmRegistration(code, true, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+export function resendConfirmationCode(email: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = new CognitoUser({ Username: email, Pool: pool });
+    user.resendConfirmationCode((err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 export function signIn(email: string, password: string): Promise<CognitoUserSession> {
   return new Promise((resolve, reject) => {
     const user = new CognitoUser({ Username: email, Pool: pool });
