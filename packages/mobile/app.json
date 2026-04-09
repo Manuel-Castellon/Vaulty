@@ -4,7 +4,7 @@
     "slug": "coupon-manager",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "couponmanager",
+    "scheme": ["vaulty", "couponmanager"],
     "platforms": ["android"],
     "android": {
       "package": "com.couponmanager.app",

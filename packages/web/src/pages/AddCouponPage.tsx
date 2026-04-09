@@ -19,6 +19,8 @@ export default function AddCouponPage() {
     discountType: "percentage" as "percentage" | "fixed",
     discountValue: "",
     expiresAt: "",
+    maxUsage: "",
+    qrCode: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +44,8 @@ export default function AddCouponPage() {
             ? { type: "percentage", value: parseFloat(form.discountValue) }
             : { type: "fixed", value: parseFloat(form.discountValue), currency: "USD" },
         expiresAt: form.expiresAt || undefined,
+        maxUsage: form.maxUsage ? parseInt(form.maxUsage, 10) : undefined,
+        qrCode: form.qrCode || undefined,
       });
       navigate("/");
     } catch (err: any) {
@@ -142,15 +146,41 @@ export default function AddCouponPage() {
             />
           </label>
 
-          <label className={styles.label}>
-            Expiry Date
-            <input
-              className={styles.input}
-              type="date"
-              value={form.expiresAt}
-              onChange={(e) => set("expiresAt", e.target.value)}
-            />
-          </label>
+          <div className={styles.optionalSection}>
+            <p className={styles.optionalHeading}>Optional details</p>
+
+            <label className={styles.label}>
+              Expiry Date
+              <input
+                className={styles.input}
+                type="date"
+                value={form.expiresAt}
+                onChange={(e) => set("expiresAt", e.target.value)}
+              />
+            </label>
+
+            <label className={styles.label}>
+              Max uses
+              <input
+                className={styles.input}
+                type="number"
+                value={form.maxUsage}
+                onChange={(e) => set("maxUsage", e.target.value)}
+                placeholder="e.g. 1 (leave blank for unlimited)"
+                min="1"
+              />
+            </label>
+
+            <label className={styles.label}>
+              QR Code / Barcode
+              <input
+                className={styles.input}
+                value={form.qrCode}
+                onChange={(e) => set("qrCode", e.target.value)}
+                placeholder="e.g. barcode data or URL"
+              />
+            </label>
+          </div>
 
           <div className={styles.actions}>
             <button type="submit" className={styles.submitBtn} disabled={submitting}>

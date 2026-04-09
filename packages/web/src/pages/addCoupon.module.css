@@ -107,6 +107,25 @@
   flex: 1;
 }
 
+.optionalSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background: #f7f8fa;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.optionalHeading {
+  font-size: 13px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 4px;
+}
+
 .error {
   color: #ff3b30;
   font-size: 14px;

@@ -10,23 +10,7 @@ import {
   Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { signIn } from "../services/auth";
-
-const COGNITO_DOMAIN = process.env.EXPO_PUBLIC_COGNITO_DOMAIN as string;
-const CLIENT_ID = process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID as string;
-const REDIRECT_URI = "exp://localhost:8081/--/auth/callback";
-
-function getGoogleSignInUrl(): string {
-  const redirectUri = encodeURIComponent(REDIRECT_URI);
-  return (
-    `https://${COGNITO_DOMAIN}/oauth2/authorize` +
-    `?identity_provider=Google` +
-    `&redirect_uri=${redirectUri}` +
-    `&response_type=code` +
-    `&client_id=${CLIENT_ID}` +
-    `&scope=email+openid+profile`
-  );
-}
+import { signIn, getGoogleSignInUrl } from "../services/auth";
 
 export default function LoginScreen() {
   const router = useRouter();
