@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   FlatList,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   TextInput,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import type { Coupon } from "@coupon/shared";
 import { api } from "../services/api";
 
@@ -58,13 +58,16 @@ export default function CouponsScreen() {
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  const fetchCoupons = useCallback(() => {
+    setLoading(true);
     api.coupons
       .list()
       .then((res) => setCoupons(res.items))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useFocusEffect(fetchCoupons);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);

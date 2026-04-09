@@ -246,7 +246,9 @@ export default function CouponsPage() {
                 <div className={styles.cardFooter}>
                   <button
                     className={styles.deleteBtn}
-                    onClick={() => deleteCoupon(coupon.id)}
+                    onClick={() => {
+                      if (window.confirm(`Delete "${coupon.title}"?`)) deleteCoupon(coupon.id);
+                    }}
                   >
                     Delete
                   </button>
