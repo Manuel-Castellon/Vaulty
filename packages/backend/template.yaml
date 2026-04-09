@@ -13,6 +13,7 @@ Globals:
         REGION: !Ref AWS::Region
         USER_POOL_ID: !Ref CognitoUserPool
         IMAGES_BUCKET: !Ref CouponImagesBucket
+        GEMINI_API_KEY: !Ref GeminiApiKey
   Api:
     Cors:
       AllowOrigin: "'*'"
@@ -23,6 +24,11 @@ Parameters:
   Stage:
     Type: String
     Default: dev
+  GeminiApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Google Gemini API key for AI extraction
   GoogleClientId:
     Type: String
     Default: ""
@@ -262,6 +268,21 @@ Resources:
             Schedule: rate(1 day)
             Description: Daily check for coupons expiring within 3 days
             Enabled: true
+
+  # ── AI Lambda ────────────────────────────────────────────────────────────
+  ExtractFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: extract.handler
+      Timeout: 30
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /extract
+            Method: POST
 
   # ── Upload Lambda ─────────────────────────────────────────────────────────
   GetUploadUrlFunction:

@@ -12,6 +12,7 @@ import type { Coupon } from "@coupon/shared";
 import { api } from "../services/api";
 
 type StatusTab = "active" | "expired";
+type ItemTypeTab = "all" | "coupon" | "voucher";
 
 function daysUntilExpiry(expiresAt: string): number {
   const now = Date.now();
@@ -32,12 +33,25 @@ function isExpired(coupon: Coupon): boolean {
   return !!coupon.expiresAt && new Date(coupon.expiresAt) < new Date();
 }
 
+function formatValue(coupon: Coupon): string | null {
+  if (coupon.discount) {
+    if (coupon.discount.type === "percentage") return `${coupon.discount.value}% OFF`;
+    return `${coupon.discount.currency} ${coupon.discount.value} OFF`;
+  }
+  if (coupon.faceValue) {
+    const cur = coupon.currency ?? "";
+    return `${cur} ${coupon.faceValue} value`.trim();
+  }
+  return null;
+}
+
 export default function CouponsScreen() {
   const router = useRouter();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<StatusTab>("active");
+  const [statusTab, setStatusTab] = useState<StatusTab>("active");
+  const [itemTypeTab, setItemTypeTab] = useState<ItemTypeTab>("all");
 
   useEffect(() => {
     api.coupons
@@ -48,26 +62,41 @@ export default function CouponsScreen() {
   }, []);
 
   const filtered = useMemo(() => {
-    return coupons.filter((c) =>
-      activeTab === "active" ? !isExpired(c) : isExpired(c),
-    );
-  }, [coupons, activeTab]);
+    return coupons
+      .filter((c) => (statusTab === "active" ? !isExpired(c) : isExpired(c)))
+      .filter((c) => itemTypeTab === "all" || c.itemType === itemTypeTab);
+  }, [coupons, statusTab, itemTypeTab]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
   if (error) return <Text style={styles.error}>{error}</Text>;
 
   return (
     <View style={styles.container}>
-      {/* Filter tabs */}
+      {/* Status tabs */}
       <View style={styles.tabBar}>
         {(["active", "expired"] as StatusTab[]).map((tab) => (
           <TouchableOpacity
             key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
+            style={[styles.tab, statusTab === tab && styles.tabActive]}
+            onPress={() => setStatusTab(tab)}
           >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+            <Text style={[styles.tabText, statusTab === tab && styles.tabTextActive]}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Item type tabs */}
+      <View style={styles.typeTabBar}>
+        {(["all", "coupon", "voucher"] as ItemTypeTab[]).map((t) => (
+          <TouchableOpacity
+            key={t}
+            style={[styles.typeTab, itemTypeTab === t && styles.typeTabActive]}
+            onPress={() => setItemTypeTab(t)}
+          >
+            <Text style={[styles.typeTabText, itemTypeTab === t && styles.typeTabTextActive]}>
+              {t === "all" ? "All" : t === "coupon" ? "Coupons" : "Vouchers"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -80,9 +109,9 @@ export default function CouponsScreen() {
           const expired = isExpired(item);
           const expiry = expiryLabel(item);
           const expiringSoon =
-            !expired &&
-            item.expiresAt !== undefined &&
-            daysUntilExpiry(item.expiresAt) <= 7;
+            !expired && item.expiresAt !== undefined && daysUntilExpiry(item.expiresAt) <= 7;
+          const value = formatValue(item);
+          const isVoucher = item.itemType === "voucher";
 
           return (
             <TouchableOpacity
@@ -91,14 +120,14 @@ export default function CouponsScreen() {
             >
               <View style={styles.itemHeader}>
                 <Text style={[styles.title, expired && styles.textDimmed]}>{item.title}</Text>
-                <View style={[styles.badge, expired && styles.badgeExpired]}>
-                  <Text style={[styles.badgeText, expired && styles.badgeTextExpired]}>
-                    {expired ? "Expired" : item.category}
+                <View style={[styles.badge, expired && styles.badgeExpired, isVoucher && !expired && styles.badgeVoucher]}>
+                  <Text style={[styles.badgeText, expired && styles.badgeTextExpired, isVoucher && !expired && styles.badgeTextVoucher]}>
+                    {expired ? "Expired" : isVoucher ? "Voucher" : item.category}
                   </Text>
                 </View>
               </View>
               <Text style={[styles.sub, expired && styles.textDimmed]}>
-                {item.store} · {item.code}
+                {item.store}{value ? ` · ${value}` : ""}
               </Text>
               <Text style={[
                 styles.expiry,
@@ -111,7 +140,7 @@ export default function CouponsScreen() {
         }}
         ListEmptyComponent={
           <Text style={styles.empty}>
-            {activeTab === "active" ? "No active coupons." : "No expired coupons."}
+            {statusTab === "active" ? "No active items." : "No expired items."}
           </Text>
         }
       />
@@ -143,26 +172,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
-  tabActive: {
-    borderBottomColor: "#007AFF",
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#999",
-  },
-  tabTextActive: {
-    color: "#007AFF",
-  },
+  tabActive: { borderBottomColor: "#007AFF" },
+  tabText: { fontSize: 14, fontWeight: "600", color: "#999" },
+  tabTextActive: { color: "#007AFF" },
 
-  item: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+  typeTabBar: {
+    flexDirection: "row",
+    backgroundColor: "#f5f5f5",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
   },
-  itemExpired: {
-    opacity: 0.5,
+  typeTab: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: "center",
+    borderRadius: 6,
+    backgroundColor: "transparent",
   },
+  typeTabActive: { backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 2, elevation: 1 },
+  typeTabText: { fontSize: 12, fontWeight: "600", color: "#999" },
+  typeTabTextActive: { color: "#333" },
+
+  item: { padding: 16, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  itemExpired: { opacity: 0.5 },
   itemHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -180,18 +213,11 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     flexShrink: 0,
   },
-  badgeExpired: {
-    backgroundColor: "#fff0f0",
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#007AFF",
-    textTransform: "capitalize",
-  },
-  badgeTextExpired: {
-    color: "#FF3B30",
-  },
+  badgeExpired: { backgroundColor: "#fff0f0" },
+  badgeVoucher: { backgroundColor: "#f0fff4" },
+  badgeText: { fontSize: 11, fontWeight: "600", color: "#007AFF", textTransform: "capitalize" },
+  badgeTextExpired: { color: "#FF3B30" },
+  badgeTextVoucher: { color: "#34C759" },
 
   sub: { fontSize: 13, color: "#666", marginBottom: 4 },
   expiry: { fontSize: 12, marginTop: 2 },

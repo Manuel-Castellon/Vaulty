@@ -39,6 +39,14 @@
   overflow: hidden;
 }
 
+.heroCardVoucher {
+  background: linear-gradient(135deg, #34c759 0%, #1e8e3e 100%);
+}
+
+.badgeVoucher {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 .heroCard::before {
   content: "";
   position: absolute;

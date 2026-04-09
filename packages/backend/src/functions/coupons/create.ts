@@ -15,24 +15,32 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return badRequest("Invalid JSON body");
   }
 
-  if (!input.code || !input.title || !input.store || !input.discount) {
-    return badRequest("Missing required fields: code, title, store, discount");
+  if (!input.code || !input.title || !input.store) {
+    return badRequest("Missing required fields: code, title, store");
   }
 
   const now = new Date().toISOString();
   const coupon: Coupon = {
     id: uuidv4(),
     userId,
+    itemType: input.itemType ?? "coupon",
     code: input.code,
     title: input.title,
     description: input.description,
     discount: input.discount,
+    faceValue: input.faceValue,
+    cost: input.cost,
+    currency: input.currency,
     store: input.store,
     category: input.category ?? "other",
     expiresAt: input.expiresAt,
+    eventDate: input.eventDate,
+    seatInfo: input.seatInfo,
+    conditions: input.conditions,
     isActive: true,
     usageCount: 0,
     maxUsage: input.maxUsage,
+    quantity: input.quantity,
     amountUsed: 0,
     imageUrl: input.imageUrl,
     qrCode: input.qrCode,

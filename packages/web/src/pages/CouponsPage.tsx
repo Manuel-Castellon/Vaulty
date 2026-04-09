@@ -1,18 +1,23 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useCoupons } from "../hooks/useCoupons";
-import type { CouponCategory } from "@coupon/shared";
+import type { Coupon, CouponCategory } from "@coupon/shared";
 import styles from "./coupons.module.css";
 
 const CATEGORIES: CouponCategory[] = [
   "food", "retail", "travel", "entertainment", "health", "tech", "other",
 ];
 
-function formatDiscount(coupon: { discount: { type: string; value: number; currency?: string } }): string {
-  if (coupon.discount.type === "percentage") {
-    return `${coupon.discount.value}% OFF`;
+function formatValue(coupon: Coupon): string | null {
+  if (coupon.discount) {
+    if (coupon.discount.type === "percentage") return `${coupon.discount.value}% OFF`;
+    return `${coupon.discount.currency} ${coupon.discount.value} OFF`;
   }
-  return `${coupon.discount.currency ?? "USD"} ${coupon.discount.value} OFF`;
+  if (coupon.faceValue) {
+    const cur = coupon.currency ?? "";
+    return `${cur} ${coupon.faceValue} value`.trim();
+  }
+  return null;
 }
 
 function daysUntilExpiry(expiresAt: string): number {
@@ -32,10 +37,12 @@ function expiryLabel(expiresAt: string | undefined): { text: string; warn: boole
 
 type SortOption = "expiry" | "added";
 type StatusFilter = "all" | "active" | "expired";
+type ItemTypeFilter = "all" | "coupon" | "voucher";
 
 export default function CouponsPage() {
   const { coupons, loading, error, deleteCoupon } = useCoupons();
 
+  const [itemTypeFilter, setItemTypeFilter] = useState<ItemTypeFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CouponCategory | "all">("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("expiry");
@@ -43,44 +50,58 @@ export default function CouponsPage() {
   const filtered = useMemo(() => {
     let result = [...coupons];
 
-    // Filter by category
+    if (itemTypeFilter !== "all") {
+      result = result.filter((c) => c.itemType === itemTypeFilter);
+    }
+
     if (categoryFilter !== "all") {
       result = result.filter((c) => c.category === categoryFilter);
     }
 
-    // Filter by status
     if (statusFilter === "active") {
       result = result.filter((c) => !c.expiresAt || new Date(c.expiresAt) >= new Date());
     } else if (statusFilter === "expired") {
       result = result.filter((c) => c.expiresAt && new Date(c.expiresAt) < new Date());
     }
 
-    // Sort
     result.sort((a, b) => {
       if (sortBy === "expiry") {
-        // No expiry goes to the end
         if (!a.expiresAt && !b.expiresAt) return 0;
         if (!a.expiresAt) return 1;
         if (!b.expiresAt) return -1;
         return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
       }
-      // Sort by date added (createdAt desc — newest first)
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bTime - aTime;
     });
 
     return result;
-  }, [coupons, categoryFilter, statusFilter, sortBy]);
+  }, [coupons, itemTypeFilter, categoryFilter, statusFilter, sortBy]);
 
-  if (loading) return <p className={styles.center}>Loading your coupons…</p>;
+  if (loading) return <p className={styles.center}>Loading your vault…</p>;
   if (error) return <p className={styles.errorText}>Error: {error}</p>;
+
+  const emptyAll = filtered.length === 0 && coupons.length === 0;
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>My Coupons</h1>
-        <Link to="/add" className={styles.addBtn}>+ Add Coupon</Link>
+        <h1 className={styles.title}>My Vault</h1>
+        <Link to="/add" className={styles.addBtn}>+ Add</Link>
+      </div>
+
+      {/* Item type tabs */}
+      <div className={styles.typeTabs}>
+        {(["all", "coupon", "voucher"] as ItemTypeFilter[]).map((t) => (
+          <button
+            key={t}
+            className={`${styles.typeTab}${itemTypeFilter === t ? ` ${styles.typeTabActive}` : ""}`}
+            onClick={() => setItemTypeFilter(t)}
+          >
+            {t === "all" ? "All" : t === "coupon" ? "Coupons" : "Vouchers"}
+          </button>
+        ))}
       </div>
 
       {coupons.length > 0 && (
@@ -130,16 +151,16 @@ export default function CouponsPage() {
         </div>
       )}
 
-      {filtered.length === 0 && coupons.length === 0 ? (
+      {emptyAll ? (
         <div className={styles.empty}>
-          <p className={styles.emptyTitle}>No coupons yet</p>
-          <p className={styles.emptyText}>Start saving by adding your first coupon.</p>
-          <Link to="/add" className={styles.emptyLink}>Add a coupon →</Link>
+          <p className={styles.emptyTitle}>Nothing saved yet</p>
+          <p className={styles.emptyText}>Add your first coupon or voucher.</p>
+          <Link to="/add" className={styles.emptyLink}>Add one →</Link>
         </div>
       ) : filtered.length === 0 ? (
         <div className={styles.empty}>
-          <p className={styles.emptyTitle}>No coupons match your filters</p>
-          <p className={styles.emptyText}>Try adjusting the category or status filter.</p>
+          <p className={styles.emptyTitle}>No items match your filters</p>
+          <p className={styles.emptyText}>Try adjusting the type, category, or status filter.</p>
         </div>
       ) : (
         <ul className={styles.grid}>
@@ -148,18 +169,23 @@ export default function CouponsPage() {
               ? new Date(coupon.expiresAt) < new Date()
               : false;
             const expiry = expiryLabel(coupon.expiresAt);
+            const value = formatValue(coupon);
+            const isVoucher = coupon.itemType === "voucher";
 
             return (
-              <li key={coupon.id} className={`${styles.card}${isExpired ? ` ${styles.cardExpired}` : ""}`}>
+              <li
+                key={coupon.id}
+                className={`${styles.card}${isExpired ? ` ${styles.cardExpired}` : ""}${isVoucher ? ` ${styles.cardVoucher}` : ""}`}
+              >
                 <Link to={`/coupons/${coupon.id}`} className={styles.cardLink}>
                   <div className={styles.cardTop}>
                     <h2 className={styles.cardTitle}>{coupon.title}</h2>
-                    <span className={`${styles.badge}${isExpired ? ` ${styles.badgeExpired}` : ""}`}>
-                      {isExpired ? "Expired" : coupon.category}
+                    <span className={`${styles.badge}${isExpired ? ` ${styles.badgeExpired}` : isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
+                      {isExpired ? "Expired" : isVoucher ? "Voucher" : coupon.category}
                     </span>
                   </div>
                   <p className={styles.cardStore}>{coupon.store}</p>
-                  <p className={styles.discount}>{formatDiscount(coupon)}</p>
+                  {value && <p className={styles.discount}>{value}</p>}
                   <div className={styles.cardMeta}>
                     <span className={expiry.expired ? styles.expiry : expiry.warn ? styles.expiryWarn : styles.expiry}>
                       {expiry.text}

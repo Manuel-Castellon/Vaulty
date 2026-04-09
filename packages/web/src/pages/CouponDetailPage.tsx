@@ -4,11 +4,17 @@ import type { Coupon } from "@coupon/shared";
 import { api } from "../services/api";
 import styles from "./couponDetail.module.css";
 
-function formatDiscount(coupon: Coupon): string {
-  if (coupon.discount.type === "percentage") {
-    return `${coupon.discount.value}% OFF`;
+function formatValue(coupon: Coupon): string | null {
+  if (coupon.discount) {
+    if (coupon.discount.type === "percentage") return `${coupon.discount.value}% OFF`;
+    return `${coupon.discount.currency} ${coupon.discount.value} OFF`;
   }
-  return `${coupon.discount.currency} ${coupon.discount.value} OFF`;
+  if (coupon.faceValue) {
+    const cur = coupon.currency ?? "";
+    if (coupon.cost) return `${cur} ${coupon.faceValue} value (paid ${cur} ${coupon.cost})`.trim();
+    return `${cur} ${coupon.faceValue} value`.trim();
+  }
+  return null;
 }
 
 function daysUntilExpiry(expiresAt: string): number {
@@ -35,7 +41,7 @@ export default function CouponDetailPage() {
   }, [id]);
 
   const handleDelete = async () => {
-    if (!id || !window.confirm("Delete this coupon?")) return;
+    if (!id || !window.confirm("Delete this item?")) return;
     await api.coupons.delete(id);
     navigate("/");
   };
@@ -51,17 +57,27 @@ export default function CouponDetailPage() {
   };
 
   if (loading) return <p className={styles.center}>Loading…</p>;
-  if (!coupon) return <p className={styles.center}>Coupon not found.</p>;
+  if (!coupon) return <p className={styles.center}>Item not found.</p>;
 
-  const isFixed = coupon.discount.type === "fixed";
-  const total = isFixed ? coupon.discount.value : null;
+  // Amount tracking: works for fixed-discount coupons and credit vouchers
+  const trackingTotal =
+    coupon.discount?.type === "fixed"
+      ? coupon.discount.value
+      : coupon.faceValue ?? null;
+  const trackingCurrency =
+    coupon.discount?.type === "fixed"
+      ? coupon.discount.currency
+      : coupon.currency ?? "";
   const amountUsed = coupon.amountUsed ?? 0;
-  const remaining = total !== null ? total - amountUsed : null;
-  const progressPct = total ? Math.min((amountUsed / total) * 100, 100) : 0;
+  const remaining = trackingTotal !== null ? trackingTotal - amountUsed : null;
+  const progressPct = trackingTotal ? Math.min((amountUsed / trackingTotal) * 100, 100) : 0;
 
   const isExpired = coupon.expiresAt ? new Date(coupon.expiresAt) < new Date() : false;
   const days = coupon.expiresAt ? daysUntilExpiry(coupon.expiresAt) : null;
   const expiringSoon = days !== null && days > 0 && days <= 7;
+
+  const value = formatValue(coupon);
+  const isVoucher = coupon.itemType === "voucher";
 
   return (
     <div className={styles.page}>
@@ -70,16 +86,18 @@ export default function CouponDetailPage() {
       </button>
 
       {/* Hero card */}
-      <div className={styles.heroCard}>
+      <div className={`${styles.heroCard}${isVoucher ? ` ${styles.heroCardVoucher}` : ""}`}>
         {coupon.imageUrl && (
-          <img src={coupon.imageUrl} alt="Coupon" className={styles.heroImage} />
+          <img src={coupon.imageUrl} alt={coupon.title} className={styles.heroImage} />
         )}
         <div className={styles.heroTop}>
           <h1 className={styles.heroTitle}>{coupon.title}</h1>
-          <span className={styles.badge}>{coupon.category}</span>
+          <span className={`${styles.badge}${isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
+            {isVoucher ? "Voucher" : coupon.category}
+          </span>
         </div>
         <p className={styles.heroStore}>{coupon.store}</p>
-        <p className={styles.heroDiscount}>{formatDiscount(coupon)}</p>
+        {value && <p className={styles.heroDiscount}>{value}</p>}
         <div className={styles.codeBox}>
           <span className={styles.codeLabel}>Code</span>
           <span className={styles.codeValue}>{coupon.code}</span>
@@ -92,6 +110,30 @@ export default function CouponDetailPage() {
           <div className={styles.row}>
             <span className={styles.rowLabel}>Description</span>
             <span className={styles.rowValue}>{coupon.description}</span>
+          </div>
+        )}
+        {coupon.conditions && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Conditions</span>
+            <span className={styles.rowValue}>{coupon.conditions}</span>
+          </div>
+        )}
+        {coupon.eventDate && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Event date</span>
+            <span className={styles.rowValue}>{new Date(coupon.eventDate).toLocaleDateString()}</span>
+          </div>
+        )}
+        {coupon.seatInfo && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Seats</span>
+            <span className={styles.rowValue}>{coupon.seatInfo}</span>
+          </div>
+        )}
+        {coupon.quantity && coupon.quantity > 1 && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Quantity</span>
+            <span className={styles.rowValue}>{coupon.quantity}</span>
           </div>
         )}
         {coupon.expiresAt && (
@@ -118,17 +160,17 @@ export default function CouponDetailPage() {
         </div>
       </div>
 
-      {/* Amount tracker (fixed-value coupons only) */}
-      {isFixed && total !== null && (
+      {/* Amount tracker — fixed-discount coupons and credit vouchers */}
+      {trackingTotal !== null && (
         <div className={styles.trackerCard}>
           <p className={styles.trackerTitle}>Amount Tracker</p>
           <div className={styles.progressBar}>
             <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
           </div>
           <div className={styles.progressLabels}>
-            <span>Used: {coupon.discount.currency} {amountUsed.toFixed(2)}</span>
+            <span>Used: {trackingCurrency} {amountUsed.toFixed(2)}</span>
             <span className={styles.progressRemaining}>
-              {coupon.discount.currency} {(remaining ?? 0).toFixed(2)} remaining
+              {trackingCurrency} {(remaining ?? 0).toFixed(2)} remaining
             </span>
           </div>
           <div className={styles.trackerInput}>
@@ -136,7 +178,7 @@ export default function CouponDetailPage() {
               className={styles.amountInput}
               type="number"
               min={0}
-              max={total}
+              max={trackingTotal}
               step="0.01"
               value={amountInput}
               onChange={(e) => setAmountInput(e.target.value)}
@@ -152,7 +194,7 @@ export default function CouponDetailPage() {
       {/* Delete */}
       <div className={styles.deleteSection}>
         <button className={styles.deleteBtn} onClick={handleDelete}>
-          Delete Coupon
+          Delete {isVoucher ? "Voucher" : "Coupon"}
         </button>
       </div>
     </div>

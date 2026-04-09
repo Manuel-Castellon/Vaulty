@@ -1,19 +1,27 @@
 export interface Coupon {
   id: string;
   userId: string;
+  itemType: "coupon" | "voucher";
   code: string;
   title: string;
   description?: string;
-  discount: DiscountValue;
+  discount?: DiscountValue;       // coupons only — absent on item/credit vouchers
+  faceValue?: number;             // credit vouchers: what you can spend
+  cost?: number;                  // credit vouchers: what you paid
+  currency?: string;              // currency for faceValue/cost
   store: string;
   category: CouponCategory;
-  expiresAt?: string; // ISO 8601
+  expiresAt?: string;             // ISO 8601
+  eventDate?: string;             // tickets: the actual event date (ISO 8601)
+  seatInfo?: string;              // tickets: e.g. "Row 7, Seats 1-2"
+  conditions?: string;            // usage restrictions
   isActive: boolean;
   usageCount: number;
   maxUsage?: number;
-  amountUsed?: number; // for fixed-value coupons: how much of discount.value has been used
-  imageUrl?: string;   // S3 URL of the coupon image
-  qrCode?: string;     // QR code data or URL extracted from the coupon
+  quantity?: number;              // number of items/tickets this voucher covers
+  amountUsed?: number;            // for fixed/credit: how much has been redeemed
+  imageUrl?: string;
+  qrCode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -32,14 +40,22 @@ export type CouponCategory =
   | "other";
 
 export interface CreateCouponInput {
+  itemType?: "coupon" | "voucher";
   code: string;
   title: string;
   description?: string;
-  discount: DiscountValue;
+  discount?: DiscountValue;
+  faceValue?: number;
+  cost?: number;
+  currency?: string;
   store: string;
-  category: CouponCategory;
+  category?: CouponCategory;
   expiresAt?: string;
+  eventDate?: string;
+  seatInfo?: string;
+  conditions?: string;
   maxUsage?: number;
+  quantity?: number;
   imageUrl?: string;
   qrCode?: string;
 }
