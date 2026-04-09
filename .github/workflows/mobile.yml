@@ -2,32 +2,34 @@ name: Mobile
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
     paths: ["packages/mobile/**", "shared/**"]
   pull_request:
     paths: ["packages/mobile/**", "shared/**"]
 
 jobs:
   typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "20"
           cache: npm
       - run: npm ci
       - run: npm run typecheck --workspace=packages/mobile
 
   build-android:
-    if: github.ref == 'refs/heads/main'
+    name: Build Android (EAS)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.EXPO_TOKEN != ''
     needs: typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "20"
           cache: npm
       - uses: expo/expo-github-action@v8
         with:
