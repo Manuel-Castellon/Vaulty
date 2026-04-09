@@ -5,6 +5,7 @@ import type {
   CouponListResponse,
   ExtractionResult,
   ExtractRequest,
+  SearchRequest,
 } from "@coupon/shared";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:3001";
@@ -30,6 +31,11 @@ export const api = {
   ai: {
     extract: (req: ExtractRequest) =>
       request<ExtractionResult>("/extract", {
+        method: "POST",
+        body: JSON.stringify(req),
+      }),
+    search: (req: SearchRequest) =>
+      request<CouponListResponse>("/search", {
         method: "POST",
         body: JSON.stringify(req),
       }),

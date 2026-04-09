@@ -270,6 +270,23 @@ Resources:
             Enabled: true
 
   # ── AI Lambda ────────────────────────────────────────────────────────────
+  SearchFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: search.handler
+      Timeout: 30
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /search
+            Method: POST
+
   ExtractFunction:
     Type: AWS::Serverless::Function
     Metadata:

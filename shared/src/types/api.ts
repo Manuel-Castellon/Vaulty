@@ -32,6 +32,10 @@ export interface ExtractionResult {
   description?: string;
 }
 
+export interface SearchRequest {
+  query: string;
+}
+
 export interface ExtractRequest {
   /** Base64-encoded file content */
   data?: string;

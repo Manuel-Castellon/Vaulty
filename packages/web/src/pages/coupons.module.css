@@ -74,6 +74,38 @@
   font-size: 15px;
 }
 
+/* Search bar */
+.searchBar {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.searchInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 16px;
+  font-size: 15px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.searchInput:focus {
+  border-color: #007aff;
+}
+
+.searchSpinner {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #007aff;
+  pointer-events: none;
+}
+
 /* Item type tabs */
 .typeTabs {
   display: flex;

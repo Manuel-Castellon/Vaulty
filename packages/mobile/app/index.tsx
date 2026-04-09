@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   FlatList,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import type { Coupon } from "@coupon/shared";
@@ -52,6 +53,10 @@ export default function CouponsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [statusTab, setStatusTab] = useState<StatusTab>("active");
   const [itemTypeTab, setItemTypeTab] = useState<ItemTypeTab>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Coupon[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     api.coupons
@@ -61,46 +66,79 @@ export default function CouponsScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!searchQuery.trim()) { setSearchResults(null); return; }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await api.ai.search({ query: searchQuery.trim() });
+        setSearchResults(res.items);
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    }, 600);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQuery]);
+
+  const isSearchMode = searchQuery.trim().length > 0;
+
   const filtered = useMemo(() => {
+    if (searchResults !== null) return searchResults;
     return coupons
       .filter((c) => (statusTab === "active" ? !isExpired(c) : isExpired(c)))
       .filter((c) => itemTypeTab === "all" || c.itemType === itemTypeTab);
-  }, [coupons, statusTab, itemTypeTab]);
+  }, [coupons, statusTab, itemTypeTab, searchResults]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
   if (error) return <Text style={styles.error}>{error}</Text>;
 
   return (
     <View style={styles.container}>
-      {/* Status tabs */}
-      <View style={styles.tabBar}>
-        {(["active", "expired"] as StatusTab[]).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, statusTab === tab && styles.tabActive]}
-            onPress={() => setStatusTab(tab)}
-          >
-            <Text style={[styles.tabText, statusTab === tab && styles.tabTextActive]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* Search bar */}
+      <View style={styles.searchBar}>
+        <TextInput
+          style={styles.searchInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder='Search — try "pizza vouchers"…'
+          clearButtonMode="while-editing"
+          returnKeyType="search"
+        />
+        {searching && <ActivityIndicator style={styles.searchSpinner} size="small" />}
       </View>
 
-      {/* Item type tabs */}
-      <View style={styles.typeTabBar}>
-        {(["all", "coupon", "voucher"] as ItemTypeTab[]).map((t) => (
-          <TouchableOpacity
-            key={t}
-            style={[styles.typeTab, itemTypeTab === t && styles.typeTabActive]}
-            onPress={() => setItemTypeTab(t)}
-          >
-            <Text style={[styles.typeTabText, itemTypeTab === t && styles.typeTabTextActive]}>
-              {t === "all" ? "All" : t === "coupon" ? "Coupons" : "Vouchers"}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Status + type tabs — hidden while searching */}
+      {!isSearchMode && (
+        <>
+          <View style={styles.tabBar}>
+            {(["active", "expired"] as StatusTab[]).map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tab, statusTab === tab && styles.tabActive]}
+                onPress={() => setStatusTab(tab)}
+              >
+                <Text style={[styles.tabText, statusTab === tab && styles.tabTextActive]}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.typeTabBar}>
+            {(["all", "coupon", "voucher"] as ItemTypeTab[]).map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.typeTab, itemTypeTab === t && styles.typeTabActive]}
+                onPress={() => setItemTypeTab(t)}
+              >
+                <Text style={[styles.typeTabText, itemTypeTab === t && styles.typeTabTextActive]}>
+                  {t === "all" ? "All" : t === "coupon" ? "Coupons" : "Vouchers"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
 
       <FlatList
         data={filtered}
@@ -140,7 +178,7 @@ export default function CouponsScreen() {
         }}
         ListEmptyComponent={
           <Text style={styles.empty}>
-            {statusTab === "active" ? "No active items." : "No expired items."}
+            {isSearchMode ? "No matches found." : statusTab === "active" ? "No active items." : "No expired items."}
           </Text>
         }
       />
@@ -158,6 +196,24 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   center: { flex: 1 },
   error: { color: "red", margin: 16 },
+
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: "#f2f2f7",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 15,
+  },
+  searchSpinner: { marginLeft: 8 },
 
   tabBar: {
     flexDirection: "row",

@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useCoupons } from "../hooks/useCoupons";
 import type { Coupon, CouponCategory } from "@coupon/shared";
+import { api } from "../services/api";
 import styles from "./coupons.module.css";
 
 const CATEGORIES: CouponCategory[] = [
@@ -42,12 +43,41 @@ type ItemTypeFilter = "all" | "coupon" | "voucher";
 export default function CouponsPage() {
   const { coupons, loading, error, deleteCoupon } = useCoupons();
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Coupon[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [itemTypeFilter, setItemTypeFilter] = useState<ItemTypeFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CouponCategory | "all">("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("expiry");
 
+  // Debounced AI search
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await api.ai.search({ query: searchQuery.trim() });
+        setSearchResults(res.items);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 600);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQuery]);
+
   const filtered = useMemo(() => {
+    // In search mode, show ranked results without further filtering
+    if (searchResults !== null) return searchResults;
+
     let result = [...coupons];
 
     if (itemTypeFilter !== "all") {
@@ -82,6 +112,7 @@ export default function CouponsPage() {
   if (loading) return <p className={styles.center}>Loading your vault…</p>;
   if (error) return <p className={styles.errorText}>Error: {error}</p>;
 
+  const isSearching = searchQuery.trim().length > 0;
   const emptyAll = filtered.length === 0 && coupons.length === 0;
 
   return (
@@ -91,64 +122,80 @@ export default function CouponsPage() {
         <Link to="/add" className={styles.addBtn}>+ Add</Link>
       </div>
 
-      {/* Item type tabs */}
-      <div className={styles.typeTabs}>
-        {(["all", "coupon", "voucher"] as ItemTypeFilter[]).map((t) => (
-          <button
-            key={t}
-            className={`${styles.typeTab}${itemTypeFilter === t ? ` ${styles.typeTabActive}` : ""}`}
-            onClick={() => setItemTypeFilter(t)}
-          >
-            {t === "all" ? "All" : t === "coupon" ? "Coupons" : "Vouchers"}
-          </button>
-        ))}
+      {/* Search bar */}
+      <div className={styles.searchBar}>
+        <input
+          className={styles.searchInput}
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={'Search \u2014 try \u201cpizza vouchers\u201d or \u201cexpiring soon\u201d\u2026'}
+        />
+        {searching && <span className={styles.searchSpinner}>Searching…</span>}
       </div>
 
-      {coupons.length > 0 && (
-        <div className={styles.filterBar}>
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>Category</label>
-            <select
-              className={styles.filterSelect}
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value as CouponCategory | "all")}
-            >
-              <option value="all">All categories</option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c.charAt(0).toUpperCase() + c.slice(1)}
-                </option>
-              ))}
-            </select>
+      {/* Item type tabs + filters — hidden while searching */}
+      {!isSearching && (
+        <>
+          <div className={styles.typeTabs}>
+            {(["all", "coupon", "voucher"] as ItemTypeFilter[]).map((t) => (
+              <button
+                key={t}
+                className={`${styles.typeTab}${itemTypeFilter === t ? ` ${styles.typeTabActive}` : ""}`}
+                onClick={() => setItemTypeFilter(t)}
+              >
+                {t === "all" ? "All" : t === "coupon" ? "Coupons" : "Vouchers"}
+              </button>
+            ))}
           </div>
 
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>Status</label>
-            <div className={styles.toggleGroup}>
-              {(["all", "active", "expired"] as StatusFilter[]).map((s) => (
-                <button
-                  key={s}
-                  className={`${styles.toggleBtn}${statusFilter === s ? ` ${styles.toggleBtnActive}` : ""}`}
-                  onClick={() => setStatusFilter(s)}
+          {coupons.length > 0 && (
+            <div className={styles.filterBar}>
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Category</label>
+                <select
+                  className={styles.filterSelect}
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value as CouponCategory | "all")}
                 >
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
+                  <option value="all">All categories</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>Sort by</label>
-            <select
-              className={styles.filterSelect}
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-            >
-              <option value="expiry">Expiry (soonest first)</option>
-              <option value="added">Date added (newest first)</option>
-            </select>
-          </div>
-        </div>
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Status</label>
+                <div className={styles.toggleGroup}>
+                  {(["all", "active", "expired"] as StatusFilter[]).map((s) => (
+                    <button
+                      key={s}
+                      className={`${styles.toggleBtn}${statusFilter === s ? ` ${styles.toggleBtnActive}` : ""}`}
+                      onClick={() => setStatusFilter(s)}
+                    >
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.filterGroup}>
+                <label className={styles.filterLabel}>Sort by</label>
+                <select
+                  className={styles.filterSelect}
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                >
+                  <option value="expiry">Expiry (soonest first)</option>
+                  <option value="added">Date added (newest first)</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {emptyAll ? (
@@ -159,8 +206,12 @@ export default function CouponsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className={styles.empty}>
-          <p className={styles.emptyTitle}>No items match your filters</p>
-          <p className={styles.emptyText}>Try adjusting the type, category, or status filter.</p>
+          <p className={styles.emptyTitle}>
+            {isSearching ? "No matches found" : "No items match your filters"}
+          </p>
+          <p className={styles.emptyText}>
+            {isSearching ? "Try a different search." : "Try adjusting the type, category, or status filter."}
+          </p>
         </div>
       ) : (
         <ul className={styles.grid}>
