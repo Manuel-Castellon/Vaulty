@@ -1,4 +1,4 @@
-DIST = $(DIST_DIR)
+DIST = $(or $(DIST_DIR),dist)
 
 build-ListCouponsFunction:
 	cp $(DIST)/ListCouponsFunction/list.js $(ARTIFACTS_DIR)/list.js
