@@ -25,11 +25,11 @@ Package names: `@coupon/backend`, `@coupon/mobile`, `@coupon/web`, `@coupon/shar
 | Web | React 18, Vite, react-router-dom |
 | Backend | AWS Lambda (Node 18), API Gateway, AWS SAM |
 | Database | DynamoDB — table `coupons-{stage}`, PK: `userId`, SK: `id` |
-| Auth | AWS Cognito (planned, not yet scaffolded) |
-| File Storage | AWS S3 (planned, for coupon images) |
-| AI — Primary | Grok (Llama) — free tier only |
-| AI — Fallback | Gemini Flash Lite — free tier only |
-| CI/CD | GitHub Actions (planned) |
+| Auth | AWS Cognito (email/password + Google SSO) |
+| File Storage | AWS S3 (coupon images + QR crops) |
+| AI — Primary | Gemini 2.5 Flash Lite — free tier only |
+| AI — Fallback | QR-only/manual fallback paths (no paid AI) |
+| CI/CD | GitHub Actions (active; deploy on `main`) |
 | Deploy region | us-east-1 |
 
 **Hard constraint: AI APIs must stay on free tiers. Never suggest paid AI usage.**
@@ -122,6 +122,8 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 
 **Remaining:**
 - EAS / Android cloud build (needs EXPO_TOKEN + EAS account setup)
+- Password reset flow (web + mobile)
+- Notification preferences (global/per-coupon enable/disable)
 - UI polish pass
 - Web push notifications (post-MVP)
 
@@ -134,6 +136,15 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - Shared merge behavior in `shared/src/lib/extractionMerge.ts` intentionally preserves user-entered form values; extracted values only fill blank/default fields.
 - Mobile manual verification focus after the latest extraction work is in `mobile_smoke_checklist.md`.
 - Next model-assisted manual task: verify golden examples for PDF/image scanning, starting with the fixtures and acceptance criteria in `NEXT_MODEL_HANDOFF.md`.
+
+## Current Snapshot (as of 2026-04-10)
+
+- AI extraction remains Gemini-only and can hit free-tier quota; UX now surfaces retry-seconds from provider when available.
+- Backend includes quota cooldown short-circuiting for repeated same-payload extraction attempts.
+- QR persistence/display is hardened:
+  - If explicit `qrCode` is missing at create-time, backend now falls back to storing `qrCode` from `code`.
+  - Add flows support partial success messaging when AI fails but QR decode succeeds.
+- CI/CD is active and deploys backend on `main`; heavier hardening checks are documented as deferred post-MVP.
 
 ## Conventions
 
