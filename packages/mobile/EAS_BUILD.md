@@ -42,3 +42,13 @@ Create token at:
 
 CI uses `--no-wait`, so the workflow step exits after queuing.
 Use the Expo dashboard build URL to monitor progress and download APK.
+
+## Troubleshooting notes (current)
+
+- If GitHub Actions fails at `npm ci` with lock mismatch:
+  - ensure both root `package.json` and `package-lock.json` are committed together.
+- If Expo cloud build fails in `Run gradlew` with `expo-module-gradle-plugin` / `ExpoModulesCorePlugin.gradle` errors:
+  - **Most common cause (SDK 51):** npm installed `expo-font@55.x` as a peer of `@expo/vector-icons` (`expo-font: *` resolves to latest). That version targets a newer Expo SDK and breaks Gradle on SDK 51.
+  - **Fix:** pin `expo-font` to `~12.0.10` (direct dependency + root `overrides`), then `npm install` and commit lockfile. Run `npx expo-doctor` — it must pass before cloud build.
+- If EAS `expo doctor` fails on version skew:
+  - align `react-native`, `react-native-svg`, and `typescript` to versions `expo-doctor` reports for your SDK (or run `npx expo install --fix` from `packages/mobile`).

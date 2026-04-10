@@ -1,6 +1,6 @@
 # Next Model Handoff
 
-Updated: 2026-04-10
+Updated: 2026-04-10 (latest)
 
 ## Immediate Next Task
 
@@ -255,27 +255,91 @@ Deferred hardening to re-enable/enforce post-MVP:
   - `production` Android profile produces AAB
 - Added CI-gated Android cloud build job in `.github/workflows/mobile.yml`:
   - Runs only on manual `workflow_dispatch` (no auto queue on push)
-  - Requires repository secret `EXPO_TOKEN`
+  - Uses repository secret `EXPO_TOKEN` in the EAS step (job `if` must not reference `secrets.*`)
   - Requires CI preflight to pass before queueing cloud build
   - Queues build with `eas build --platform android --profile preview --non-interactive --no-wait`
 - Added mobile runbook `packages/mobile/EAS_BUILD.md` with local and CI steps.
 - Added local preflight command in `packages/mobile/package.json`:
   - `npm run preflight:android`
 
-### Current Operator State
+### Current Operator State (superseded)
 
-- `eas-cli` was installed locally and verified.
-- Expo login via interactive password had issues in VM terminal; token auth is recommended.
-- `EXPO_TOKEN` is now configured in GitHub secrets.
-- First Android internal distribution build is queued in Expo dashboard (manual run in progress).
+- See latest section below for the current status after workflow and dependency fixes.
 
-### Next Checks (once queue finishes)
+## Session Update (2026-04-10, Android build/debug continuation)
 
-1. Download generated APK from Expo build URL and install on Android device.
-2. Execute quick smoke pass:
-   - login/signup
-   - add coupon/voucher
-   - AI extraction and save
-   - open detail page and verify QR render
-3. Trigger or wait for next `main` CI run and confirm `Android Preview Build (EAS)` queues successfully from GitHub Actions.
-3. Run GitHub Actions `Mobile` workflow manually (`workflow_dispatch`) after local preflight is green and user approves queueing cloud build.
+### What Happened
+
+- GitHub Actions initially failed with workflow parse error in `.github/workflows/mobile.yml`:
+  - `Unrecognized named-value: 'secrets'` in job-level `if`.
+- Expo cloud build failed at Gradle phase with:
+  - `Plugin [id: 'expo-module-gradle-plugin'] was not found`
+  - `Could not get unknown property 'release'` from `ExpoModulesCorePlugin.gradle`.
+
+### Root Causes
+
+1. **Workflow expression issue**
+   - Job-level `if` used `secrets.EXPO_TOKEN`, which was rejected by parser in this context.
+2. **Dependency lock mismatch / Expo module drift**
+   - `packages/mobile/package.json` and lockfile were temporarily out of sync in CI (`npm ci` failure).
+   - Expo SDK 51 app had dependency drift where `expo-router` resolved `expo-linking`/`expo-constants` 55.x in the tree, causing Gradle plugin resolution errors.
+
+### Fixes Applied
+
+- `.github/workflows/mobile.yml`
+  - Kept manual trigger (`workflow_dispatch`) only.
+  - Removed invalid `secrets` expression from job-level `if`.
+- Dependency alignment (SDK 51 compatible):
+  - `packages/mobile/package.json`: explicit `expo-constants` and `expo-linking`.
+  - root `package.json`: added `overrides` and root dependency pins for `expo-constants` + `expo-linking`.
+  - `package-lock.json`: regenerated/synced.
+- Validation:
+  - `npm run preflight:android` passes successfully.
+  - Latest push fixed prior CI `npm ci` lock mismatch error.
+
+### Current State (now)
+
+- Mobile workflow YAML is valid on GitHub.
+- Local Android preflight is green.
+- CI package-lock sync issue was resolved by a follow-up commit.
+- Still pending: a **successful Expo cloud Android preview build** and APK install smoke.
+
+### Immediate Next Steps
+
+1. Run a new cloud build from `packages/mobile`:
+   - `eas build --platform android --profile preview`
+2. If build succeeds:
+   - download APK from Expo URL
+   - install on Android
+   - run smoke checklist (auth, add coupon/voucher, extraction, save, detail QR render)
+3. Trigger GitHub `Mobile` workflow manually (`Run workflow`) to verify CI path end-to-end.
+4. If Expo fails again:
+   - capture first `Run gradlew` `FAILURE:` block
+   - patch and retry.
+
+## Session Update (2026-04-10, EAS expo-doctor + Gradle failures — root cause)
+
+### Symptoms
+
+- EAS failed `expo doctor` / `expo-doctor`: `react-native`, `react-native-svg`, `typescript` skew vs SDK 51.
+- EAS failed `Run gradlew`: `expo-module-gradle-plugin` not found (often pointing at `expo-font/android/build.gradle`), plus `ExpoModulesCorePlugin.gradle` `release` property error.
+
+### Actual root cause (Gradle)
+
+- `@expo/vector-icons` declares peer `expo-font: "*"`. npm resolved that to **`expo-font@55.x`**, which belongs to a **newer Expo SDK** and uses Gradle plugin wiring incompatible with SDK **51** → broken native build.
+
+### Fix shipped in repo
+
+- Direct dependency `expo-font@~12.0.10` in `packages/mobile/package.json`.
+- Root `package.json` `overrides.expo-font: "~12.0.10"` so nothing in the tree can pull 55.x again.
+- Aligned versions per `expo-doctor`: `react-native@0.74.5`, `react-native-svg@15.2.0`, `typescript@~5.3.3`; tightened `@expo/vector-icons` to `~14.0.3`.
+- `npm run preflight:android` now runs **`npx expo-doctor`** before `expo prebuild` so CI/EAS catches skew before queueing cloud builds.
+
+### Operator verification (local)
+
+- `npx expo-doctor` → 16/16 checks passed.
+- `npm run preflight:android` → passes.
+
+### Next action for human
+
+- Commit `package.json`, `packages/mobile/package.json`, and `package-lock.json` together, push, then run **one** new `eas build --platform android --profile preview`.

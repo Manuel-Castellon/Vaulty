@@ -7,7 +7,8 @@ Updated: 2026-04-10
 1. Android APK / installable build
    - ✅ EAS setup done (`eas.json`, project linkage, `EXPO_TOKEN` in CI/secrets).
    - ✅ CI path added (`.github/workflows/mobile.yml`) for gated Android preview cloud build.
-   - ⏳ Produce internal test APK/AAB and verify install path end-to-end (manual Expo queue in progress).
+   - ✅ Local Android preflight now passes (`npm run preflight:android`).
+   - ⏳ Produce internal test APK/AAB and verify install path end-to-end (cloud Expo build still pending success).
 
 2. Password reset flow
    - Implement forgot/reset password screens and API wiring on web + mobile.
