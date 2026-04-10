@@ -1,6 +1,6 @@
 # Next Model Handoff
 
-Updated: 2026-04-09
+Updated: 2026-04-10
 
 ## Immediate Next Task
 
@@ -245,3 +245,37 @@ Deferred hardening to re-enable/enforce post-MVP:
 - `npm run test --workspace=packages/web -- src/pages/__tests__/AddCouponPage.test.tsx` ✅
 - `npm run typecheck --workspace=packages/web` ✅
 - `npm run typecheck --workspace=packages/mobile` ✅
+
+## Session Update (2026-04-10, Android EAS build setup)
+
+### What Was Changed
+
+- Added EAS cloud build config for mobile in `packages/mobile/eas.json`:
+  - `preview` Android profile produces APK (`distribution: internal`)
+  - `production` Android profile produces AAB
+- Added CI-gated Android cloud build job in `.github/workflows/mobile.yml`:
+  - Runs only on manual `workflow_dispatch` (no auto queue on push)
+  - Requires repository secret `EXPO_TOKEN`
+  - Requires CI preflight to pass before queueing cloud build
+  - Queues build with `eas build --platform android --profile preview --non-interactive --no-wait`
+- Added mobile runbook `packages/mobile/EAS_BUILD.md` with local and CI steps.
+- Added local preflight command in `packages/mobile/package.json`:
+  - `npm run preflight:android`
+
+### Current Operator State
+
+- `eas-cli` was installed locally and verified.
+- Expo login via interactive password had issues in VM terminal; token auth is recommended.
+- `EXPO_TOKEN` is now configured in GitHub secrets.
+- First Android internal distribution build is queued in Expo dashboard (manual run in progress).
+
+### Next Checks (once queue finishes)
+
+1. Download generated APK from Expo build URL and install on Android device.
+2. Execute quick smoke pass:
+   - login/signup
+   - add coupon/voucher
+   - AI extraction and save
+   - open detail page and verify QR render
+3. Trigger or wait for next `main` CI run and confirm `Android Preview Build (EAS)` queues successfully from GitHub Actions.
+3. Run GitHub Actions `Mobile` workflow manually (`workflow_dispatch`) after local preflight is green and user approves queueing cloud build.

@@ -5,8 +5,9 @@ Updated: 2026-04-10
 ## P0 — Launch blockers
 
 1. Android APK / installable build
-   - Set up EAS (`eas.json`, project linkage, `EXPO_TOKEN` in CI/secrets).
-   - Produce internal test APK/AAB and verify install path end-to-end.
+   - ✅ EAS setup done (`eas.json`, project linkage, `EXPO_TOKEN` in CI/secrets).
+   - ✅ CI path added (`.github/workflows/mobile.yml`) for gated Android preview cloud build.
+   - ⏳ Produce internal test APK/AAB and verify install path end-to-end (manual Expo queue in progress).
 
 2. Password reset flow
    - Implement forgot/reset password screens and API wiring on web + mobile.

@@ -4,24 +4,27 @@
     "slug": "coupon-manager",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": ["vaulty", "couponmanager"],
-    "platforms": ["android"],
+    "scheme": [
+      "vaulty",
+      "couponmanager"
+    ],
+    "platforms": [
+      "android"
+    ],
     "android": {
-      "package": "com.couponmanager.app",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+      "package": "com.couponmanager.app"
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/adaptive-icon.png",
-          "color": "#007AFF"
-        }
-      ]
-    ]
+      "expo-notifications"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "1b4678da-5d9f-4c20-ab41-069ca7415297"
+      }
+    }
   }
 }

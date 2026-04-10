@@ -68,7 +68,7 @@ All API types are in `shared/src/types/api.ts`. Always update shared types befor
 ## Architecture Decisions
 
 - **Single DynamoDB table** — `userId` (HASH) + `id` (RANGE). Add GSIs if query patterns require it.
-- **AI provider abstraction** — Grok (Llama) is primary, Gemini Flash Lite is fallback. Keep providers behind an interface so switching is clean.
+- **AI provider abstraction** — Gemini Flash Lite is currently the only active full-extraction provider. Keep provider logic behind an interface so adding a future free-tier fallback remains clean.
 - **SAM for infrastructure** — `packages/backend/template.yaml` is the source of truth for all AWS resources.
 - **Shared types** — `@coupon/shared` is the contract between backend and frontends. Never duplicate type definitions.
 - **Auth** — AWS Cognito. Client-side auth via `amazon-cognito-identity-js` in both web and mobile (`services/auth.ts`). Backend reads JWT from `Authorization` header; `event.requestContext.authorizer?.claims?.sub` is the userId. Env vars: `VITE_COGNITO_USER_POOL_ID` / `VITE_COGNITO_CLIENT_ID` (web), `EXPO_PUBLIC_COGNITO_USER_POOL_ID` / `EXPO_PUBLIC_COGNITO_CLIENT_ID` (mobile). Values come from SAM Outputs after deploy.
@@ -145,6 +145,10 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
   - If explicit `qrCode` is missing at create-time, backend now falls back to storing `qrCode` from `code`.
   - Add flows support partial success messaging when AI fails but QR decode succeeds.
 - CI/CD is active and deploys backend on `main`; heavier hardening checks are documented as deferred post-MVP.
+- Mobile cloud build pipeline is partially in place:
+  - EAS build profiles exist in `packages/mobile/eas.json`.
+  - GitHub mobile workflow includes gated EAS Android preview build when `EXPO_TOKEN` is configured.
+  - Final step pending: confirm installable APK from current queued Expo build and complete smoke verification.
 
 ## Conventions
 

@@ -6,6 +6,7 @@ on:
     paths: ["packages/mobile/**", "shared/**"]
   pull_request:
     paths: ["packages/mobile/**", "shared/**"]
+  workflow_dispatch:
 
 jobs:
   typecheck:
@@ -20,3 +21,28 @@ jobs:
       - run: npm ci
       - run: npm run test --workspace=shared
       - run: npm run typecheck --workspace=packages/mobile
+
+  android_preview_build:
+    name: Android Preview Build (EAS)
+    runs-on: ubuntu-latest
+    needs: typecheck
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      secrets.EXPO_TOKEN != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Local preflight checks (must be green first)
+        working-directory: packages/mobile
+        run: npm run preflight:android
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+      - name: Start Android preview build in cloud
+        working-directory: packages/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build --platform android --profile preview --non-interactive --no-wait
