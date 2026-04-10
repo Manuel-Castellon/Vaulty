@@ -20,10 +20,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
 
   const now = new Date().toISOString();
+  const itemType = input.itemType ?? "coupon";
+  const qrCode =
+    input.qrCode ??
+    (typeof input.code === "string" && input.code.trim()
+      ? input.code.trim()
+      : undefined);
   const coupon: Coupon = {
     id: uuidv4(),
     userId,
-    itemType: input.itemType ?? "coupon",
+    itemType,
     code: input.code,
     title: input.title,
     description: input.description,
@@ -44,7 +50,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     quantity: input.quantity,
     amountUsed: 0,
     imageUrl: input.imageUrl,
-    qrCode: input.qrCode,
+    qrCode,
     qrImageS3Key: input.qrImageS3Key,
     extractionWarnings: input.extractionWarnings,
     issueDate: input.issueDate,

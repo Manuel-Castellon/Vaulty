@@ -89,6 +89,15 @@ function applyExtraction(extracted: ExtractionResult | undefined): { form: Parti
   return { form, itemType };
 }
 
+function looksLikeUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function AddCouponScreen() {
   const router = useRouter();
   const { itemType: initialItemType } = useLocalSearchParams<{ itemType?: string }>();
@@ -151,6 +160,10 @@ export default function AddCouponScreen() {
         BarCodeScanner.scanFromURLAsync(asset.uri, [BarCodeScanner.Constants.BarCodeType.qr]),
       ]);
 
+      const qrCode =
+        qrResult.status === "fulfilled"
+          ? qrResult.value[0]?.data
+          : undefined;
       const hasServerQrImage = aiResult.status === "fulfilled" && !!aiResult.value.qrImageS3Key;
       if (aiResult.status === "fulfilled") {
         const { form: extractedForm, itemType: extractedType } = applyExtraction(aiResult.value.extraction);
@@ -162,12 +175,6 @@ export default function AddCouponScreen() {
             : null
         );
         if (aiResult.value.qrImageS3Key) setQrImageS3Key(aiResult.value.qrImageS3Key);
-      } else {
-        throw aiResult.reason;
-      }
-
-      if (qrResult.status === "fulfilled") {
-        const qrCode = qrResult.value[0]?.data;
         if (qrCode) {
           setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
         }
@@ -181,6 +188,18 @@ export default function AddCouponScreen() {
           : hasServerQrImage
             ? "QR image detected and saved. It will appear on the saved voucher."
             : "No QR was detected from this image.");
+      } else {
+        const message = aiResult.reason?.message ?? "Extraction failed";
+        if (qrCode) {
+          setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
+          setExtractError(null);
+          setManualFallbackHint(null);
+          setExtractWarning(null);
+          setQrExtractionHint("AI scan is unavailable right now. Only QR was scanned and will be saved.");
+          console.info("[add-coupon][extract] partial_success_qr_only", { source: "image", message });
+          return;
+        }
+        throw aiResult.reason;
       }
     } catch (err: any) {
       const message = err.message ?? "Extraction failed";
@@ -240,6 +259,9 @@ export default function AddCouponScreen() {
     }
     setSaving(true);
     try {
+      const qrCodeForSave =
+        form.qrCode ||
+        (form.code && looksLikeUrl(form.code) ? form.code : undefined);
       await api.coupons.create({
         itemType,
         code: form.code || form.title.slice(0, 20),
@@ -268,7 +290,7 @@ export default function AddCouponScreen() {
         conditions: form.conditions || undefined,
         quantity: form.quantity ? parseInt(form.quantity, 10) : undefined,
         maxUsage: form.maxUsage ? parseInt(form.maxUsage, 10) : undefined,
-        qrCode: form.qrCode || undefined,
+        qrCode: qrCodeForSave,
         qrImageS3Key: qrImageS3Key || undefined,
       });
       console.info("[add-coupon][save] success", {

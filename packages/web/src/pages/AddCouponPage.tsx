@@ -78,6 +78,15 @@ function applyExtraction(extracted: ExtractionResult): { form: Partial<FormState
   return { form, itemType };
 }
 
+function looksLikeUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function AddCouponPage() {
   const navigate = useNavigate();
   const [itemType, setItemType] = useState<"coupon" | "voucher">("coupon");
@@ -202,29 +211,38 @@ export default function AddCouponPage() {
         isImage ? decodeQrFromImage(file) : Promise.resolve(null),
       ]);
 
-      const hasServerQrImage = aiResult.status === "fulfilled" && !!aiResult.value.qrImageS3Key;
-      if (aiResult.status === "fulfilled") {
-        applyAiExtraction(aiResult.value.extraction, aiResult.value.warnings, aiResult.value.qrImageS3Key);
-      } else {
-        throw aiResult.reason;
-      }
-
       const qrCode = qrResult.status === "fulfilled" && typeof qrResult.value === "string"
         ? qrResult.value
         : undefined;
-      if (qrCode) {
-        setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
+      const hasServerQrImage = aiResult.status === "fulfilled" && !!aiResult.value.qrImageS3Key;
+      if (aiResult.status === "fulfilled") {
+        applyAiExtraction(aiResult.value.extraction, aiResult.value.warnings, aiResult.value.qrImageS3Key);
+        if (qrCode) {
+          setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
+        }
+        const qrDetectionType = qrCode ? "payload" : hasServerQrImage ? "image" : "none";
+        console.info("[add-coupon][extract] completed", {
+          source: "file",
+          qrDetectionType,
+        });
+        setQrExtractionHint(qrCode
+          ? "QR payload detected and added. It will be shown on the saved voucher."
+          : hasServerQrImage
+            ? "QR image detected and saved. It will be shown on the saved voucher."
+            : "No QR was detected from this file.");
+      } else {
+        const message = aiResult.reason?.message ?? "Extraction failed";
+        if (qrCode) {
+          setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
+          setExtractError(null);
+          setManualFallbackHint(null);
+          setExtractWarning(null);
+          setQrExtractionHint("AI scan is unavailable right now. Only QR was scanned and will be saved.");
+          console.info("[add-coupon][extract] partial_success_qr_only", { source: "file", message });
+          return;
+        }
+        throw aiResult.reason;
       }
-      const qrDetectionType = qrCode ? "payload" : hasServerQrImage ? "image" : "none";
-      console.info("[add-coupon][extract] completed", {
-        source: "file",
-        qrDetectionType,
-      });
-      setQrExtractionHint(qrCode
-        ? "QR payload detected and added. It will be shown on the saved voucher."
-        : hasServerQrImage
-          ? "QR image detected and saved. It will be shown on the saved voucher."
-          : "No QR was detected from this file.");
     } catch (err: any) {
       const message = err.message ?? "Extraction failed";
       console.info("[add-coupon][extract] failed", {
@@ -306,6 +324,9 @@ export default function AddCouponPage() {
     setError(null);
     setSubmitting(true);
     try {
+      const qrCodeForSave =
+        form.qrCode ||
+        (form.code && looksLikeUrl(form.code) ? form.code : undefined);
       await api.coupons.create({
         itemType,
         code: form.code,
@@ -334,7 +355,7 @@ export default function AddCouponPage() {
         conditions: form.conditions || undefined,
         quantity: form.quantity ? parseInt(form.quantity, 10) : undefined,
         maxUsage: form.maxUsage ? parseInt(form.maxUsage, 10) : undefined,
-        qrCode: form.qrCode || undefined,
+        qrCode: qrCodeForSave,
         qrImageS3Key: qrImageS3Key || undefined,
       });
       console.info("[add-coupon][save] success", {
