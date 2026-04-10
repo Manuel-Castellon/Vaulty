@@ -14,7 +14,13 @@
   "engines": {
     "node": ">=20"
   },
+  "overrides": {
+    "expo-constants": "~16.0.2",
+    "expo-linking": "~6.3.1"
+  },
   "dependencies": {
-    "expo-dev-client": "~4.0.29"
+    "expo-constants": "~16.0.2",
+    "expo-dev-client": "~4.0.29",
+    "expo-linking": "~6.3.1"
   }
 }
