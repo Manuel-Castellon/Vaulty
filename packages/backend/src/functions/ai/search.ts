@@ -10,11 +10,13 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 function summarise(coupon: Coupon) {
   return {
     id: coupon.id,
-    title: coupon.title,
+    code: coupon.code,
     store: coupon.store,
-    itemType: coupon.itemType,
+    title: coupon.title,
     category: coupon.category,
     description: coupon.description,
+    itemType: coupon.itemType,
+    status: coupon.status ?? "active",
     conditions: coupon.conditions,
     discount: coupon.discount,
     faceValue: coupon.faceValue,
@@ -24,7 +26,6 @@ function summarise(coupon: Coupon) {
     eventDate: coupon.eventDate,
     seatInfo: coupon.seatInfo,
     quantity: coupon.quantity,
-    isActive: coupon.isActive,
   };
 }
 
@@ -70,8 +71,15 @@ User query: "${body.query}"
 Here are their saved items as JSON:
 ${JSON.stringify(coupons.map(summarise))}
 
-Return a JSON array of IDs of the matching items, ordered by relevance (most relevant first).
-Only include items that genuinely match the query — do not include all items.
+Return a JSON array of IDs of matching items, ordered by relevance (most relevant first).
+Rank by this priority:
+1. Exact match on code field
+2. Merchant/store name match
+3. Title match
+4. Category match
+5. Description or conditions match
+
+Only include items that genuinely match the query. Do not include all items.
 If nothing matches, return an empty array [].
 Return ONLY a JSON array of ID strings, no markdown, no explanation.`;
 

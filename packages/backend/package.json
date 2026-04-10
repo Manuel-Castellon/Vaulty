@@ -7,16 +7,21 @@
     "deploy": "sam deploy --guided",
     "deploy:ci": "sam deploy",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "test:live": "RUN_LIVE_GEMINI_TESTS=1 jest src/functions/ai/__tests__/extract.live.test.js --runInBand",
+    "test:vouchers": "npx ts-node --project tsconfig.json scripts/runVoucherTests.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "jimp": "^0.22.12",
+    "jsqr": "^1.4.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
     "@coupon/shared": "*",
     "@types/aws-lambda": "^8.10.0",
     "@types/uuid": "^9.0.0",

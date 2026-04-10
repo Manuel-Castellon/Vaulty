@@ -44,6 +44,12 @@
   margin: 0 0 12px;
 }
 
+.extractHint {
+  font-size: 13px;
+  color: #667085;
+  margin: 0 0 12px;
+}
+
 .extractActions {
   display: flex;
   gap: 10px;
@@ -107,6 +113,18 @@
   margin: 8px 0 0;
 }
 
+.extractWarning {
+  font-size: 13px;
+  color: #8a5a00;
+  margin: 8px 0 0;
+}
+
+.extractManualHint {
+  font-size: 13px;
+  color: #1d4d2f;
+  margin: 8px 0 0;
+}
+
 .hidden {
   display: none;
 }
@@ -137,6 +155,52 @@
   background: #fff;
   color: #333;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.suggestionBanner {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff8e7;
+  border: 1px solid #f2d395;
+}
+
+.suggestionText {
+  margin: 0;
+  color: #5d4300;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.suggestionActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.suggestionPrimary,
+.suggestionDismiss {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.suggestionPrimary {
+  border: none;
+  background: #c77000;
+  color: #fff;
+}
+
+.suggestionDismiss {
+  border: 1px solid #e6c88a;
+  background: #fff;
+  color: #7a5800;
 }
 
 .form {
@@ -296,5 +360,10 @@
 
   .discountRow .select {
     width: 100%;
+  }
+
+  .suggestionBanner {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

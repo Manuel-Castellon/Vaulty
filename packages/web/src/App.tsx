@@ -3,6 +3,7 @@ import { useAuth } from "./context/AuthContext";
 import RequireAuth from "./components/RequireAuth";
 import CouponsPage from "./pages/CouponsPage";
 import CouponDetailPage from "./pages/CouponDetailPage";
+import EditCouponPage from "./pages/EditCouponPage";
 import AddCouponPage from "./pages/AddCouponPage";
 import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
@@ -53,6 +54,7 @@ export default function App() {
           {/* Protected routes */}
           <Route path="/" element={<RequireAuth><CouponsPage /></RequireAuth>} />
           <Route path="/coupons/:id" element={<RequireAuth><CouponDetailPage /></RequireAuth>} />
+          <Route path="/coupons/:id/edit" element={<RequireAuth><EditCouponPage /></RequireAuth>} />
           <Route path="/add" element={<RequireAuth><AddCouponPage /></RequireAuth>} />
 
           {/* Catch-all */}

@@ -3,10 +3,11 @@ import type {
   CreateCouponInput,
   UpdateCouponInput,
   CouponListResponse,
-  ExtractionResult,
+  ExtractResponse,
   ExtractRequest,
   SearchRequest,
 } from "@coupon/shared";
+import { normalizeExtractResponse } from "@coupon/shared";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -32,11 +33,13 @@ async function request<T>(
 
 export const api = {
   ai: {
-    extract: (req: ExtractRequest) =>
-      request<ExtractionResult>("/extract", {
-        method: "POST",
-        body: JSON.stringify(req),
-      }),
+    extract: async (req: ExtractRequest) =>
+      normalizeExtractResponse(
+        await request<ExtractResponse | import("@coupon/shared").ExtractionResult>("/extract", {
+          method: "POST",
+          body: JSON.stringify(req),
+        })
+      ),
     search: (req: SearchRequest) =>
       request<CouponListResponse>("/search", {
         method: "POST",

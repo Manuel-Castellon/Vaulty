@@ -125,6 +125,16 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - UI polish pass
 - Web push notifications (post-MVP)
 
+## Current Handoff (2026-04-09)
+
+- Working tree is intentionally dirty with active MVP changes across backend, mobile, web, and shared. Do not reset or discard anything without Manuel's explicit instruction.
+- AI extraction currently uses Gemini 2.5 Flash Lite only. Quota exhaustion returns a manual-entry fallback message; alternative free-tier fallback providers are tracked in `fallback_ai_backlog.md`.
+- Extraction hardens language preservation for Hebrew/non-Latin documents in `packages/backend/src/functions/ai/extract.ts`.
+- Live extraction smoke coverage exists in `packages/backend/src/functions/ai/__tests__/extract.live.test.js` and currently targets `examples/dominos.pdf` and `examples/castro.pdf`.
+- Shared merge behavior in `shared/src/lib/extractionMerge.ts` intentionally preserves user-entered form values; extracted values only fill blank/default fields.
+- Mobile manual verification focus after the latest extraction work is in `mobile_smoke_checklist.md`.
+- Next model-assisted manual task: verify golden examples for PDF/image scanning, starting with the fixtures and acceptance criteria in `NEXT_MODEL_HANDOFF.md`.
+
 ## Conventions
 
 - TypeScript everywhere — no `any`, no skipping type checks

@@ -4,7 +4,7 @@ const CORS = {
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
 };
 
-export const ok = (body: unknown) => ({
+export const ok = <T>(body: T) => ({
   statusCode: 200,
   headers: { "Content-Type": "application/json", ...CORS },
   body: JSON.stringify(body),

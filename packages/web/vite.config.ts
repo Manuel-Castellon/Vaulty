@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 3000,
+      allowedHosts: true,
       proxy: {
         "/api": {
           target: env.VITE_API_TARGET,
@@ -23,6 +24,11 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api/, ""),
         },
       },
+    },
+    test: {
+      environment: "jsdom",
+      globals: true,
+      setupFiles: "./src/test/setup.ts",
     },
   };
 });

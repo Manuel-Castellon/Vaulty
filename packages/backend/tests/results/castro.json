@@ -1,0 +1,18 @@
+{
+  "_source": "castro.pdf",
+  "_extractedAt": "2026-04-10T07:51:13.492Z",
+  "_notes": "Prepurchased for 100 ILS, worth 200 ILS",
+  "sourceLanguage": "he",
+  "sourceScript": "hebrew",
+  "title": "שובר ב-100 ₪ למימוש 200 ₪ בקבוצת קסטרו-הודיס",
+  "store": "קסטרו-הודיס",
+  "itemType": "voucher",
+  "description": "100 ₪ שובר למימוש 200 ₪",
+  "conditions": "הצג את הטלפון לספק",
+  "code": "1392262402525",
+  "expiresAt": "2030-12-22",
+  "cost": 100,
+  "faceValue": 200,
+  "quantity": 1,
+  "currency": "ILS"
+}

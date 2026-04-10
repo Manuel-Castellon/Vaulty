@@ -18,6 +18,11 @@ const functions = [
   { name: "SearchFunction",       entry: "src/functions/ai/search.ts",                out: "search.js" },
 ];
 
+// Functions that use jimp/jsqr need those packages bundled (they are NOT
+// available in the Lambda runtime). All @aws-sdk/* clients remain external
+// because the Lambda Node.js 20 runtime ships the full AWS SDK v3.
+const NEEDS_IMAGE_DEPS = new Set(["ExtractFunction"]);
+
 for (const fn of functions) {
   const outDir = resolve(root, "dist", fn.name);
   mkdirSync(outDir, { recursive: true });
@@ -26,7 +31,11 @@ for (const fn of functions) {
     bundle: true,
     platform: "node",
     target: "es2020",
-    external: ["@aws-sdk/*"],
+    // jimp/jsqr are only bundled for functions that need them to keep
+    // other function bundles small.
+    external: NEEDS_IMAGE_DEPS.has(fn.name)
+      ? ["@aws-sdk/*"]
+      : ["@aws-sdk/*", "jimp", "jsqr"],
     outfile: resolve(outDir, fn.out),
   });
   console.log(`bundled ${fn.name}`);

@@ -1,0 +1,7 @@
+# Real-world vouchers — keep out of version control
+*.jpg
+*.jpeg
+*.png
+*.pdf
+# Results
+../../results/

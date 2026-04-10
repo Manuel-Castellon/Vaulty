@@ -1,3 +1,6 @@
+/** Manual lifecycle state. Treat undefined (legacy records) as "active". */
+export type CouponStatus = "active" | "used" | "archived" | "expired";
+
 export interface Coupon {
   id: string;
   userId: string;
@@ -12,9 +15,12 @@ export interface Coupon {
   store: string;
   category: CouponCategory;
   expiresAt?: string;             // ISO 8601
+  issueDate?: string;             // ISO 8601 — when the voucher was issued
   eventDate?: string;             // tickets: the actual event date (ISO 8601)
   seatInfo?: string;              // tickets: e.g. "Row 7, Seats 1-2"
-  conditions?: string;            // usage restrictions
+  conditions?: string;            // usage restrictions / terms
+  status?: CouponStatus;          // manual lifecycle; undefined means "active"
+  /** @deprecated Use status instead */
   isActive: boolean;
   usageCount: number;
   maxUsage?: number;
@@ -22,6 +28,9 @@ export interface Coupon {
   amountUsed?: number;            // for fixed/credit: how much has been redeemed
   imageUrl?: string;
   qrCode?: string;
+  qrImageS3Key?: string;          // S3 key for cropped QR code image from extraction
+  qrImageUrl?: string;            // presigned GET URL for qrImageS3Key (computed at read time, not stored)
+  extractionWarnings?: string[];  // warnings produced during AI/OCR extraction
   createdAt: string;
   updatedAt: string;
 }
@@ -51,16 +60,21 @@ export interface CreateCouponInput {
   store: string;
   category?: CouponCategory;
   expiresAt?: string;
+  issueDate?: string;
   eventDate?: string;
   seatInfo?: string;
   conditions?: string;
+  status?: CouponStatus;
   maxUsage?: number;
   quantity?: number;
   imageUrl?: string;
   qrCode?: string;
+  qrImageS3Key?: string;
+  extractionWarnings?: string[];
 }
 
 export interface UpdateCouponInput extends Partial<CreateCouponInput> {
+  /** @deprecated Use status instead */
   isActive?: boolean;
   amountUsed?: number;
 }

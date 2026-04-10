@@ -18,4 +18,6 @@ jobs:
           node-version: "20"
           cache: npm
       - run: npm ci
+      - run: npm run test --workspace=shared
       - run: npm run typecheck --workspace=packages/backend
+      - run: npm run test --workspace=packages/backend

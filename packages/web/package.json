@@ -5,20 +5,30 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "predeploy": "bash scripts/predeploy-check.sh",
+    "deploy": "bash scripts/predeploy-check.sh && aws s3 sync dist s3://vaulty-web-dev-829808296740 --delete && aws cloudfront create-invalidation --distribution-id E11AI5MRGO870E --paths '/*'"
   },
   "dependencies": {
     "@coupon/shared": "*",
     "amazon-cognito-identity-js": "^6.3.0",
+    "jsqr": "^1.4.0",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.23.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "jsdom": "^25.0.1",
     "typescript": "^5.4.0",
-    "vite": "^5.2.0"
+    "vite": "^5.2.0",
+    "vitest": "^2.1.9"
   }
 }

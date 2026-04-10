@@ -1,0 +1,17 @@
+{
+  "_source": "a83888622368.pdf",
+  "_extractedAt": "2026-04-10T07:51:10.210Z",
+  "_notes": "It was prepurchased at 60 ILS, now worth 100 ILS at Wolt",
+  "sourceLanguage": "he",
+  "sourceScript": "hebrew",
+  "title": "איתכם ולצידכם: שובר ב-60 ₪ למימוש 100 ₪ באתר ובאפליקציית WOLT",
+  "store": "WOLT",
+  "itemType": "voucher",
+  "description": "שובר ב-60 ₪ למימוש 100 ₪ באתר ובאפליקציית WOLT",
+  "cost": 60,
+  "faceValue": 100,
+  "currency": "ILS",
+  "expiresAt": "2031-02-25",
+  "quantity": 1,
+  "code": "83888622368"
+}

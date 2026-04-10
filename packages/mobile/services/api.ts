@@ -3,11 +3,12 @@ import type {
   CreateCouponInput,
   UpdateCouponInput,
   CouponListResponse,
-  ExtractionResult,
+  ExtractResponse,
   ExtractRequest,
   SearchRequest,
   RegisterTokenRequest,
 } from "@coupon/shared";
+import { normalizeExtractResponse } from "@coupon/shared";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:3001";
 
@@ -37,11 +38,13 @@ export const api = {
       }),
   },
   ai: {
-    extract: (req: ExtractRequest) =>
-      request<ExtractionResult>("/extract", {
-        method: "POST",
-        body: JSON.stringify(req),
-      }),
+    extract: async (req: ExtractRequest) =>
+      normalizeExtractResponse(
+        await request<ExtractResponse | import("@coupon/shared").ExtractionResult>("/extract", {
+          method: "POST",
+          body: JSON.stringify(req),
+        })
+      ),
     search: (req: SearchRequest) =>
       request<CouponListResponse>("/search", {
         method: "POST",

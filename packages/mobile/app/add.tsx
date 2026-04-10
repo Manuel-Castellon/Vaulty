@@ -9,8 +9,13 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { BarCodeScanner } from "expo-barcode-scanner";
+import {
+  getExtractionSuggestion,
+  mergeExtraction,
+} from "@coupon/shared";
 import type { CouponCategory, ExtractionResult } from "@coupon/shared";
 import { api } from "../services/api";
 
@@ -31,6 +36,7 @@ type FormState = {
   conditions: string;
   quantity: string;
   maxUsage: string;
+  qrCode: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -38,14 +44,26 @@ const EMPTY_FORM: FormState = {
   category: "other", discountValue: "", discountType: "percentage",
   faceValue: "", cost: "", currency: "ILS",
   expiresAt: "", eventDate: "", seatInfo: "", conditions: "",
-  quantity: "", maxUsage: "",
+  quantity: "", maxUsage: "", qrCode: "",
 };
 
 const CATEGORIES: CouponCategory[] = [
   "food", "retail", "travel", "entertainment", "health", "tech", "other",
 ];
 
-function applyExtraction(extracted: ExtractionResult): { form: Partial<FormState>; itemType: "coupon" | "voucher" } {
+function parseUsageLimit(usageLimit: string | undefined): number | undefined {
+  if (!usageLimit) return undefined;
+  if (usageLimit === "one-time") return 1;
+  if (usageLimit === "multi-use") return undefined;
+  const m = usageLimit.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : undefined;
+}
+
+function applyExtraction(extracted: ExtractionResult | undefined): { form: Partial<FormState>; itemType: "coupon" | "voucher" } {
+  if (!extracted) {
+    throw new Error("AI returned an invalid extraction response");
+  }
+
   const itemType = extracted.itemType ?? "coupon";
   const form: Partial<FormState> = {};
   if (extracted.title) form.title = extracted.title;
@@ -61,6 +79,8 @@ function applyExtraction(extracted: ExtractionResult): { form: Partial<FormState
   if (extracted.quantity) form.quantity = String(extracted.quantity);
   if (extracted.expiresAt) form.expiresAt = extracted.expiresAt.slice(0, 10);
   if (extracted.eventDate) form.eventDate = extracted.eventDate.slice(0, 10);
+  const maxUsage = parseUsageLimit(extracted.usageLimit);
+  if (maxUsage !== undefined) form.maxUsage = String(maxUsage);
   if (extracted.discount) {
     form.discountType = extracted.discount.type as "percentage" | "fixed";
     form.discountValue = String(extracted.discount.value);
@@ -71,23 +91,62 @@ function applyExtraction(extracted: ExtractionResult): { form: Partial<FormState
 
 export default function AddCouponScreen() {
   const router = useRouter();
-  const [itemType, setItemType] = useState<"coupon" | "voucher">("coupon");
+  const { itemType: initialItemType } = useLocalSearchParams<{ itemType?: string }>();
+  const [itemType, setItemType] = useState<"coupon" | "voucher">(
+    initialItemType === "voucher" ? "voucher" : "coupon"
+  );
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [aiSuggestion, setAiSuggestion] = useState<"coupon" | "voucher" | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [extractWarning, setExtractWarning] = useState<string | null>(null);
+  const [manualFallbackHint, setManualFallbackHint] = useState<string | null>(null);
+  const [qrImageS3Key, setQrImageS3Key] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const set = (field: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
 
-  const handleExtract = async (base64: string, mimeType: string) => {
+  const handleExtract = async (asset: ImagePicker.ImagePickerAsset, mimeType: string) => {
+    if (!asset.base64) {
+      Alert.alert("Extraction failed", "Image data was unavailable.");
+      return;
+    }
+
     setExtracting(true);
+    setExtractWarning(null);
+    setManualFallbackHint(null);
     try {
-      const extracted = await api.ai.extract({ data: base64, mimeType });
-      const { form: ef, itemType: et } = applyExtraction(extracted);
-      setItemType(et);
-      setForm((f) => ({ ...f, ...ef }));
+      const [aiResult, qrResult] = await Promise.allSettled([
+        api.ai.extract({ data: asset.base64, mimeType }),
+        BarCodeScanner.scanFromURLAsync(asset.uri, [BarCodeScanner.Constants.BarCodeType.qr]),
+      ]);
+
+      if (aiResult.status === "fulfilled") {
+        const { form: extractedForm, itemType: extractedType } = applyExtraction(aiResult.value.extraction);
+        setForm((current) => mergeExtraction(current, extractedForm, EMPTY_FORM));
+        setAiSuggestion(getExtractionSuggestion(itemType, extractedType));
+        setExtractWarning(
+          aiResult.value.warnings?.includes("language_validation_failed")
+            ? "AI may have translated fields. Please verify before saving."
+            : null
+        );
+        if (aiResult.value.qrImageS3Key) setQrImageS3Key(aiResult.value.qrImageS3Key);
+      } else {
+        throw aiResult.reason;
+      }
+
+      if (qrResult.status === "fulfilled") {
+        const qrCode = qrResult.value[0]?.data;
+        if (qrCode) {
+          setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
+        }
+      }
     } catch (err: any) {
-      Alert.alert("Extraction failed", err.message);
+      const message = err.message ?? "Extraction failed";
+      if (/temporarily unavailable|manually/i.test(message)) {
+        setManualFallbackHint("Scanning is temporarily unavailable right now. You can still enter the voucher manually below.");
+      }
+      Alert.alert("Extraction failed", message);
     } finally {
       setExtracting(false);
     }
@@ -100,7 +159,7 @@ export default function AddCouponScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0].base64) {
-      await handleExtract(result.assets[0].base64, result.assets[0].mimeType ?? "image/jpeg");
+      await handleExtract(result.assets[0], result.assets[0].mimeType ?? "image/jpeg");
     }
   };
 
@@ -112,7 +171,7 @@ export default function AddCouponScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8 });
     if (!result.canceled && result.assets[0].base64) {
-      await handleExtract(result.assets[0].base64, "image/jpeg");
+      await handleExtract(result.assets[0], "image/jpeg");
     }
   };
 
@@ -151,6 +210,8 @@ export default function AddCouponScreen() {
         conditions: form.conditions || undefined,
         quantity: form.quantity ? parseInt(form.quantity, 10) : undefined,
         maxUsage: form.maxUsage ? parseInt(form.maxUsage, 10) : undefined,
+        qrCode: form.qrCode || undefined,
+        qrImageS3Key: qrImageS3Key || undefined,
       });
       router.back();
     } catch (err: any) {
@@ -166,6 +227,7 @@ export default function AddCouponScreen() {
       {/* AI scan row */}
       <View style={styles.extractCard}>
         <Text style={styles.extractLabel}>Auto-fill from photo or text</Text>
+        <Text style={styles.extractHint}>For QR extraction, upload or take a photo or screenshot.</Text>
         <View style={styles.scanRow}>
           <TouchableOpacity style={styles.scanBtn} onPress={takePhoto} disabled={extracting}>
             <Text style={styles.scanBtnText}>📷 Camera</Text>
@@ -175,6 +237,8 @@ export default function AddCouponScreen() {
           </TouchableOpacity>
           {extracting && <ActivityIndicator color="#007AFF" />}
         </View>
+        {extractWarning && <Text style={styles.extractWarning}>{extractWarning}</Text>}
+        {manualFallbackHint && <Text style={styles.extractManualHint}>{manualFallbackHint}</Text>}
       </View>
 
       {/* Type toggle */}
@@ -191,6 +255,28 @@ export default function AddCouponScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {aiSuggestion && (
+        <View style={styles.suggestionBanner}>
+          <Text style={styles.suggestionText}>AI thinks this looks like a {aiSuggestion}.</Text>
+          <View style={styles.suggestionActions}>
+            <TouchableOpacity
+              style={styles.suggestionPrimary}
+              onPress={() => {
+                setItemType(aiSuggestion);
+                setAiSuggestion(null);
+              }}
+            >
+              <Text style={styles.suggestionPrimaryText}>
+                Switch to {aiSuggestion === "voucher" ? "Voucher" : "Coupon"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.suggestionDismiss} onPress={() => setAiSuggestion(null)}>
+              <Text style={styles.suggestionDismissText}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <Text style={styles.label}>Title *</Text>
       <TextInput
@@ -335,6 +421,14 @@ export default function AddCouponScreen() {
         textAlignVertical="top"
       />
 
+      <Text style={styles.label}>QR Code / Barcode data</Text>
+      <TextInput
+        style={styles.input}
+        value={form.qrCode}
+        onChangeText={(v) => set("qrCode", v)}
+        placeholder="Paste scanned QR data if needed"
+      />
+
       <TouchableOpacity
         style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
         onPress={handleSave}
@@ -361,6 +455,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   extractLabel: { fontSize: 11, fontWeight: "700", color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  extractHint: { fontSize: 13, color: "#667085", marginBottom: 10 },
+  extractWarning: { fontSize: 13, color: "#8a5a00", marginTop: 10 },
+  extractManualHint: { fontSize: 13, color: "#1d4d2f", marginTop: 10 },
   scanRow: { flexDirection: "row", gap: 10, alignItems: "center" },
   scanBtn: {
     flex: 1, backgroundColor: "#fff", borderWidth: 1, borderColor: "#c0d0ff",
@@ -375,6 +472,33 @@ const styles = StyleSheet.create({
   typeBtnActive: { backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 3, elevation: 2 },
   typeBtnText: { fontWeight: "600", color: "#999", fontSize: 14 },
   typeBtnTextActive: { color: "#333" },
+  suggestionBanner: {
+    backgroundColor: "#fff8e7",
+    borderWidth: 1,
+    borderColor: "#f2d395",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 20,
+    gap: 10,
+  },
+  suggestionText: { fontSize: 14, fontWeight: "600", color: "#5d4300" },
+  suggestionActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  suggestionPrimary: {
+    backgroundColor: "#c77000",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  suggestionPrimaryText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  suggestionDismiss: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e6c88a",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  suggestionDismissText: { color: "#7a5800", fontSize: 13, fontWeight: "700" },
 
   label: { fontSize: 13, fontWeight: "600", color: "#333", marginTop: 16, marginBottom: 6 },
   input: {

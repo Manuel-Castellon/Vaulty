@@ -1,0 +1,21 @@
+{
+  "_source": "muller.pdf",
+  "_extractedAt": "2026-04-10T07:51:23.686Z",
+  "_notes": "you get the yogurts at the רמי לוי supermarket",
+  "sourceLanguage": "he",
+  "sourceScript": "hebrew",
+  "itemType": "coupon",
+  "title": "4 מעדני יוגורט ב-5 ₪",
+  "store": "רמי לוי",
+  "description": "Müller simply fruit לאיסוף מסניפי רמי לוי",
+  "conditions": "הצג את הטלפון לספק",
+  "discount": {
+    "type": "fixed",
+    "value": 5,
+    "currency": "ILS"
+  },
+  "code": "50085296410938",
+  "expiresAt": "2026-03-04",
+  "quantity": 4,
+  "category": "food"
+}

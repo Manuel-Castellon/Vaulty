@@ -251,8 +251,8 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-.cardExpired {
-  opacity: 0.5;
+.cardDimmed {
+  opacity: 0.55;
 }
 
 .cardLink {
@@ -296,6 +296,32 @@
   color: #ff3b30;
 }
 
+/* Status-specific badge variants (used via badge_<status> class) */
+.badge_expired {
+  background: #fff0f0;
+  color: #ff3b30;
+}
+
+.badge_used {
+  background: #fff8e7;
+  color: #c07000;
+}
+
+.badge_archived {
+  background: #f5f5f5;
+  color: #888;
+}
+
+/* Badge row for multiple badges */
+.badgeRow {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
 .cardStore {
   font-size: 13px;
   color: #666;
@@ -323,6 +349,12 @@
 .expiryWarn {
   font-size: 12px;
   color: #ff9500;
+  font-weight: 600;
+}
+
+.expiryExpired {
+  font-size: 12px;
+  color: #ff3b30;
   font-weight: 600;
 }
 

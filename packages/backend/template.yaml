@@ -14,6 +14,8 @@ Globals:
         USER_POOL_ID: !Ref CognitoUserPool
         IMAGES_BUCKET: !Ref CouponImagesBucket
         GEMINI_API_KEY: !Ref GeminiApiKey
+        BEDROCK_ENABLED: !Ref BedrockEnabled
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
   Api:
     Auth:
       DefaultAuthorizer: CognitoAuthorizer
@@ -34,7 +36,16 @@ Parameters:
     Type: String
     Default: ""
     NoEcho: true
-    Description: Google Gemini API key for AI extraction
+    Description: Google Gemini API key for AI extraction (legacy fallback)
+  BedrockEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: "Set to true to use Textract + Bedrock extraction pipeline"
+  BedrockModelId:
+    Type: String
+    Default: "anthropic.claude-3-haiku-20240307-v1:0"
+    Description: Bedrock model ID for semantic extraction
   GoogleClientId:
     Type: String
     Default: ""
@@ -198,6 +209,8 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref CouponsTable
+        - S3ReadPolicy:
+            BucketName: !Ref CouponImagesBucket
       Events:
         Api:
           Type: Api
@@ -230,6 +243,8 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CouponsTable
+        - S3ReadPolicy:
+            BucketName: !Ref CouponImagesBucket
       Events:
         Api:
           Type: Api
@@ -315,7 +330,18 @@ Resources:
       BuildMethod: makefile
     Properties:
       Handler: extract.handler
-      Timeout: 30
+      # 60 s covers Textract sync (images) + Bedrock + QR.
+      # PDF async Textract polls up to ~25 s; very large PDFs may still hit
+      # the API Gateway 29 s limit — use the s3Key flow for those.
+      Timeout: 60
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref CouponImagesBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/*"
       Events:
         Api:
           Type: Api

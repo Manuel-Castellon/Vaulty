@@ -1,6 +1,11 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import jsQR from "jsqr";
 import { api } from "../services/api";
+import {
+  getExtractionSuggestion,
+  mergeExtraction,
+} from "@coupon/shared";
 import type { CouponCategory, ExtractionResult } from "@coupon/shared";
 import styles from "./addCoupon.module.css";
 
@@ -36,6 +41,14 @@ const EMPTY_FORM: FormState = {
   quantity: "", maxUsage: "", qrCode: "",
 };
 
+function parseUsageLimit(usageLimit: string | undefined): number | undefined {
+  if (!usageLimit) return undefined;
+  if (usageLimit === "one-time") return 1;
+  if (usageLimit === "multi-use") return undefined;
+  const m = usageLimit.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : undefined;
+}
+
 function applyExtraction(extracted: ExtractionResult): { form: Partial<FormState>; itemType: "coupon" | "voucher" } {
   const itemType = extracted.itemType ?? "coupon";
   const form: Partial<FormState> = {};
@@ -53,6 +66,8 @@ function applyExtraction(extracted: ExtractionResult): { form: Partial<FormState
   if (extracted.cost) form.cost = String(extracted.cost);
   if (extracted.expiresAt) form.expiresAt = extracted.expiresAt.slice(0, 10);
   if (extracted.eventDate) form.eventDate = extracted.eventDate.slice(0, 10);
+  const maxUsage = parseUsageLimit(extracted.usageLimit);
+  if (maxUsage !== undefined) form.maxUsage = String(maxUsage);
 
   if (extracted.discount) {
     form.discountType = extracted.discount.type as "percentage" | "fixed";
@@ -67,11 +82,16 @@ export default function AddCouponPage() {
   const navigate = useNavigate();
   const [itemType, setItemType] = useState<"coupon" | "voucher">("coupon");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [aiSuggestion, setAiSuggestion] = useState<"coupon" | "voucher" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractWarning, setExtractWarning] = useState<string | null>(null);
+  const [extractHint, setExtractHint] = useState<string | null>(null);
+  const [manualFallbackHint, setManualFallbackHint] = useState<string | null>(null);
+  const [qrImageS3Key, setQrImageS3Key] = useState<string | undefined>(undefined);
   const [pasteText, setPasteText] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,8 +99,59 @@ export default function AddCouponPage() {
   const set = (field: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
 
+  const applyAiExtraction = (
+    extracted: ExtractionResult | undefined,
+    warnings?: string[],
+    s3Key?: string
+  ) => {
+    if (!extracted) {
+      throw new Error("AI returned an invalid extraction response");
+    }
+
+    const { form: extractedForm, itemType: extractedType } = applyExtraction(extracted);
+    setForm((current) => mergeExtraction(current, extractedForm, EMPTY_FORM));
+    setAiSuggestion(getExtractionSuggestion(itemType, extractedType));
+    setExtractWarning(
+      warnings?.includes("language_validation_failed")
+        ? "AI may have translated some fields. Please verify before saving."
+        : null
+    );
+    if (s3Key) setQrImageS3Key(s3Key);
+  };
+
+  const decodeQrFromImage = async (file: File): Promise<string | null> => {
+    const imageUrl = URL.createObjectURL(file);
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Unable to read image"));
+        img.src = imageUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      return jsQR(imageData.data, imageData.width, imageData.height)?.data ?? null;
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  };
+
   const handleExtractFile = async (file: File) => {
     setExtractError(null);
+    setExtractWarning(null);
+    setExtractHint(null);
+    setManualFallbackHint(null);
     setExtracting(true);
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -93,12 +164,34 @@ export default function AddCouponPage() {
         reader.readAsDataURL(file);
       });
 
-      const extracted = await api.ai.extract({ data: base64, mimeType: file.type });
-      const { form: extracted_form, itemType: extracted_type } = applyExtraction(extracted);
-      setItemType(extracted_type);
-      setForm((f) => ({ ...f, ...extracted_form }));
+      const isImage = file.type.startsWith("image/");
+      if (!isImage) {
+        setExtractHint("QR extraction works best from photos or screenshots. PDF QR decoding is skipped for MVP.");
+      }
+
+      const [aiResult, qrResult] = await Promise.allSettled([
+        api.ai.extract({ data: base64, mimeType: file.type }),
+        isImage ? decodeQrFromImage(file) : Promise.resolve(null),
+      ]);
+
+      if (aiResult.status === "fulfilled") {
+        applyAiExtraction(aiResult.value.extraction, aiResult.value.warnings, aiResult.value.qrImageS3Key);
+      } else {
+        throw aiResult.reason;
+      }
+
+      const qrCode = qrResult.status === "fulfilled" && typeof qrResult.value === "string"
+        ? qrResult.value
+        : undefined;
+      if (qrCode) {
+        setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
+      }
     } catch (err: any) {
-      setExtractError(err.message ?? "Extraction failed");
+      const message = err.message ?? "Extraction failed";
+      setExtractError(message);
+      if (/temporarily unavailable|manually/i.test(message)) {
+        setManualFallbackHint("Scanning is temporarily unavailable right now. You can still fill in the form manually below and save the voucher.");
+      }
     } finally {
       setExtracting(false);
     }
@@ -107,15 +200,20 @@ export default function AddCouponPage() {
   const handleExtractText = async () => {
     if (!pasteText.trim()) return;
     setExtractError(null);
+    setExtractWarning(null);
+    setExtractHint(null);
+    setManualFallbackHint(null);
     setExtracting(true);
     try {
-      const extracted = await api.ai.extract({ text: pasteText });
-      const { form: extracted_form, itemType: extracted_type } = applyExtraction(extracted);
-      setItemType(extracted_type);
-      setForm((f) => ({ ...f, ...extracted_form }));
+      const response = await api.ai.extract({ text: pasteText });
+      applyAiExtraction(response.extraction, response.warnings, response.qrImageS3Key);
       setShowPaste(false);
     } catch (err: any) {
-      setExtractError(err.message ?? "Extraction failed");
+      const message = err.message ?? "Extraction failed";
+      setExtractError(message);
+      if (/temporarily unavailable|manually/i.test(message)) {
+        setManualFallbackHint("Scanning is temporarily unavailable right now. You can still fill in the form manually below and save the voucher.");
+      }
     } finally {
       setExtracting(false);
     }
@@ -155,8 +253,9 @@ export default function AddCouponPage() {
         quantity: form.quantity ? parseInt(form.quantity, 10) : undefined,
         maxUsage: form.maxUsage ? parseInt(form.maxUsage, 10) : undefined,
         qrCode: form.qrCode || undefined,
+        qrImageS3Key: qrImageS3Key || undefined,
       });
-      navigate("/");
+      navigate(`/?type=${itemType}`);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -174,6 +273,7 @@ export default function AddCouponPage() {
       {/* AI extraction */}
       <div className={styles.extractCard}>
         <p className={styles.extractHeading}>Scan or paste to auto-fill</p>
+        <p className={styles.extractHint}>For QR extraction, images and screenshots work best. PDF QR decoding is skipped for now.</p>
         <div className={styles.extractActions}>
           <input
             ref={fileInputRef}
@@ -225,7 +325,10 @@ export default function AddCouponPage() {
         {extracting && !showPaste && (
           <p className={styles.extractStatus}>Extracting…</p>
         )}
+        {extractHint && <p className={styles.extractHint}>{extractHint}</p>}
+        {extractWarning && <p className={styles.extractWarning}>{extractWarning}</p>}
         {extractError && <p className={styles.extractError}>{extractError}</p>}
+        {manualFallbackHint && <p className={styles.extractManualHint}>{manualFallbackHint}</p>}
       </div>
 
       <div className={styles.card}>
@@ -248,6 +351,33 @@ export default function AddCouponPage() {
             Voucher
           </button>
         </div>
+
+        {aiSuggestion && (
+          <div className={styles.suggestionBanner}>
+            <p className={styles.suggestionText}>
+              AI thinks this looks like a {aiSuggestion}.
+            </p>
+            <div className={styles.suggestionActions}>
+              <button
+                type="button"
+                className={styles.suggestionPrimary}
+                onClick={() => {
+                  setItemType(aiSuggestion);
+                  setAiSuggestion(null);
+                }}
+              >
+                Switch to {aiSuggestion === "voucher" ? "Voucher" : "Coupon"}
+              </button>
+              <button
+                type="button"
+                className={styles.suggestionDismiss}
+                onClick={() => setAiSuggestion(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.label}>
@@ -423,7 +553,7 @@ export default function AddCouponPage() {
             <button type="submit" className={styles.submitBtn} disabled={submitting}>
               {submitting ? "Saving…" : `Save ${itemType === "coupon" ? "Coupon" : "Voucher"}`}
             </button>
-            <button type="button" className={styles.cancelBtn} onClick={() => navigate("/")}>
+            <button type="button" className={styles.cancelBtn} onClick={() => navigate(`/?type=${itemType}`)}>
               Cancel
             </button>
           </div>

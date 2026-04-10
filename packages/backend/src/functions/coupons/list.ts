@@ -2,12 +2,14 @@ import { APIGatewayProxyHandler } from "aws-lambda";
 import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "../../lib/dynamodb";
 import { ok, serverError } from "../../lib/response";
+import type { CouponStatus } from "@coupon/shared";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   const userId = event.requestContext.authorizer?.claims?.sub ?? "anonymous";
   const limit = event.queryStringParameters?.limit
     ? parseInt(event.queryStringParameters.limit)
     : 50;
+  const statusFilter = event.queryStringParameters?.status as CouponStatus | undefined;
 
   try {
     const result = await ddb.send(
@@ -27,8 +29,18 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       })
     );
 
+    // Normalize legacy items and apply optional status filter
+    let items = (result.Items ?? []).map((item) => {
+      if (item.status === undefined) item.status = "active";
+      return item;
+    });
+
+    if (statusFilter) {
+      items = items.filter((item) => item.status === statusFilter);
+    }
+
     return ok({
-      items: result.Items ?? [],
+      items,
       nextToken: result.LastEvaluatedKey
         ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString(
             "base64"

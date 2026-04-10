@@ -1,0 +1,18 @@
+{
+  "_source": "rami2.pdf",
+  "_extractedAt": "2026-04-10T07:51:26.866Z",
+  "_notes": "bought for 250, worth 300",
+  "sourceLanguage": "he",
+  "sourceScript": "hebrew",
+  "itemType": "voucher",
+  "title": "שובר קבוע איתכם ולצידכם",
+  "store": "רמי לוי",
+  "description": "התו המלא ב-250 ₪ למימוש 300 ₪",
+  "conditions": "הצג את הטלפון לספק",
+  "cost": 250,
+  "faceValue": 300,
+  "currency": "ILS",
+  "code": "1219430341296",
+  "expiresAt": "2030-03-01",
+  "quantity": 1
+}

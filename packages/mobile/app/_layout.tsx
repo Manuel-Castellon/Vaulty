@@ -105,6 +105,7 @@ export default function RootLayout() {
       }} />
       <Stack.Screen name="add" options={{ title: "Add Coupon" }} />
       <Stack.Screen name="coupon/[id]" options={{ title: "Coupon Detail" }} />
+      <Stack.Screen name="coupon-edit/[id]" options={{ title: "Edit" }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="confirm" options={{ title: "Confirm Email" }} />

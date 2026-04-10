@@ -7,18 +7,18 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
+  ScrollView,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import type { Coupon } from "@coupon/shared";
+import type { Coupon, CouponStatus } from "@coupon/shared";
 import { api } from "../services/api";
 
-type StatusTab = "active" | "expired";
+type StatusFilter = "all" | "active" | "used" | "archived" | "expired";
 type ItemTypeTab = "all" | "coupon" | "voucher";
+type SortOption = "expiry" | "added" | "merchant" | "category" | "status";
 
 function daysUntilExpiry(expiresAt: string): number {
-  const now = Date.now();
-  const exp = new Date(expiresAt).getTime();
-  return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
 function expiryLabel(coupon: Coupon): string {
@@ -30,8 +30,11 @@ function expiryLabel(coupon: Coupon): string {
   return `Expires ${new Date(coupon.expiresAt).toLocaleDateString()}`;
 }
 
-function isExpired(coupon: Coupon): boolean {
-  return !!coupon.expiresAt && new Date(coupon.expiresAt) < new Date();
+function effectiveStatus(coupon: Coupon): CouponStatus {
+  const s = coupon.status ?? "active";
+  if (s === "used" || s === "archived") return s;
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) return "expired";
+  return "active";
 }
 
 function formatValue(coupon: Coupon): string | null {
@@ -46,13 +49,16 @@ function formatValue(coupon: Coupon): string | null {
   return null;
 }
 
+const STATUS_ORDER: Record<CouponStatus, number> = { active: 0, used: 1, archived: 2, expired: 3 };
+
 export default function CouponsScreen() {
   const router = useRouter();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusTab, setStatusTab] = useState<StatusTab>("active");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [itemTypeTab, setItemTypeTab] = useState<ItemTypeTab>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("expiry");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Coupon[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -87,13 +93,43 @@ export default function CouponsScreen() {
 
   const filtered = useMemo(() => {
     if (searchResults !== null) return searchResults;
-    return coupons
-      .filter((c) => (statusTab === "active" ? !isExpired(c) : isExpired(c)))
+
+    let result = coupons
+      .filter((c) => statusFilter === "all" || effectiveStatus(c) === statusFilter)
       .filter((c) => itemTypeTab === "all" || c.itemType === itemTypeTab);
-  }, [coupons, statusTab, itemTypeTab, searchResults]);
+
+    result = [...result].sort((a, b) => {
+      switch (sortBy) {
+        case "expiry": {
+          if (!a.expiresAt && !b.expiresAt) return 0;
+          if (!a.expiresAt) return 1;
+          if (!b.expiresAt) return -1;
+          return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+        }
+        case "added":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "merchant":
+          return a.store.localeCompare(b.store);
+        case "category":
+          return a.category.localeCompare(b.category);
+        case "status":
+          return STATUS_ORDER[effectiveStatus(a)] - STATUS_ORDER[effectiveStatus(b)];
+      }
+    });
+
+    return result;
+  }, [coupons, statusFilter, itemTypeTab, sortBy, searchResults]);
 
   if (loading) return <ActivityIndicator style={styles.center} />;
   if (error) return <Text style={styles.error}>{error}</Text>;
+
+  const SORT_OPTIONS: { key: SortOption; label: string }[] = [
+    { key: "expiry", label: "Expiring soon" },
+    { key: "added", label: "Newest" },
+    { key: "merchant", label: "Merchant" },
+    { key: "category", label: "Category" },
+    { key: "status", label: "Status" },
+  ];
 
   return (
     <View style={styles.container}>
@@ -110,23 +146,25 @@ export default function CouponsScreen() {
         {searching && <ActivityIndicator style={styles.searchSpinner} size="small" />}
       </View>
 
-      {/* Status + type tabs — hidden while searching */}
+      {/* Tabs + sort — hidden while searching */}
       {!isSearchMode && (
         <>
-          <View style={styles.tabBar}>
-            {(["active", "expired"] as StatusTab[]).map((tab) => (
+          {/* Status filter tabs */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScrollView} contentContainerStyle={styles.tabScrollContent}>
+            {(["all", "active", "used", "archived", "expired"] as StatusFilter[]).map((s) => (
               <TouchableOpacity
-                key={tab}
-                style={[styles.tab, statusTab === tab && styles.tabActive]}
-                onPress={() => setStatusTab(tab)}
+                key={s}
+                style={[styles.tab, statusFilter === s && styles.tabActive]}
+                onPress={() => setStatusFilter(s)}
               >
-                <Text style={[styles.tabText, statusTab === tab && styles.tabTextActive]}>
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                <Text style={[styles.tabText, statusFilter === s && styles.tabTextActive]}>
+                  {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
 
+          {/* Type tabs */}
           <View style={styles.typeTabBar}>
             {(["all", "coupon", "voucher"] as ItemTypeTab[]).map((t) => (
               <TouchableOpacity
@@ -140,6 +178,21 @@ export default function CouponsScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Sort chips */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScrollView} contentContainerStyle={styles.sortScrollContent}>
+            {SORT_OPTIONS.map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.sortChip, sortBy === key && styles.sortChipActive]}
+                onPress={() => setSortBy(key)}
+              >
+                <Text style={[styles.sortChipText, sortBy === key && styles.sortChipTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </>
       )}
 
@@ -147,32 +200,49 @@ export default function CouponsScreen() {
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
-          const expired = isExpired(item);
+          const status = effectiveStatus(item);
+          const isDimmed = status !== "active";
           const expiry = expiryLabel(item);
-          const expiringSoon =
-            !expired && item.expiresAt !== undefined && daysUntilExpiry(item.expiresAt) <= 7;
+          const expiringSoon = status === "active" && item.expiresAt !== undefined && daysUntilExpiry(item.expiresAt) <= 7;
           const value = formatValue(item);
           const isVoucher = item.itemType === "voucher";
 
           return (
             <TouchableOpacity
-              style={[styles.item, expired && styles.itemExpired]}
+              style={[styles.item, isDimmed && styles.itemDimmed]}
               onPress={() => router.push(`/coupon/${item.id}`)}
             >
               <View style={styles.itemHeader}>
-                <Text style={[styles.title, expired && styles.textDimmed]}>{item.title}</Text>
-                <View style={[styles.badge, expired && styles.badgeExpired, isVoucher && !expired && styles.badgeVoucher]}>
-                  <Text style={[styles.badgeText, expired && styles.badgeTextExpired, isVoucher && !expired && styles.badgeTextVoucher]}>
-                    {expired ? "Expired" : isVoucher ? "Voucher" : item.category}
-                  </Text>
+                <Text style={[styles.title, isDimmed && styles.textDimmed]}>{item.title}</Text>
+                <View style={styles.badgeRow}>
+                  {/* Type/category badge */}
+                  <View style={[styles.badge, isVoucher && styles.badgeVoucher]}>
+                    <Text style={[styles.badgeText, isVoucher && styles.badgeTextVoucher]}>
+                      {isVoucher ? "Voucher" : item.category}
+                    </Text>
+                  </View>
+                  {/* Category badge for vouchers */}
+                  {isVoucher && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{item.category}</Text>
+                    </View>
+                  )}
+                  {/* Status badge for non-active */}
+                  {status !== "active" && (
+                    <View style={[styles.badge, styles[`badge_${status}` as keyof typeof styles] as object]}>
+                      <Text style={[styles.badgeText, styles[`badgeText_${status}` as keyof typeof styles] as object]}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
-              <Text style={[styles.sub, expired && styles.textDimmed]}>
+              <Text style={[styles.sub, isDimmed && styles.textDimmed]}>
                 {item.store}{value ? ` · ${value}` : ""}
               </Text>
               <Text style={[
                 styles.expiry,
-                expired ? styles.expiryExpired : expiringSoon ? styles.expiryWarn : styles.expiryNormal,
+                status === "expired" ? styles.expiryExpired : expiringSoon ? styles.expiryWarn : styles.expiryNormal,
               ]}>
                 {expiry}
               </Text>
@@ -181,13 +251,15 @@ export default function CouponsScreen() {
         }}
         ListEmptyComponent={
           <Text style={styles.empty}>
-            {isSearchMode ? "No matches found." : statusTab === "active" ? "No active items." : "No expired items."}
+            {isSearchMode ? "No matches found." : "No items match your filters."}
           </Text>
         }
       />
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => router.push("/add")}
+        onPress={() => router.push(
+          itemTypeTab === "voucher" ? "/add?itemType=voucher" : "/add"
+        )}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
@@ -218,16 +290,11 @@ const styles = StyleSheet.create({
   },
   searchSpinner: { marginLeft: 8 },
 
-  tabBar: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    backgroundColor: "#fff",
-  },
+  tabScrollView: { borderBottomWidth: 1, borderBottomColor: "#eee" },
+  tabScrollContent: { paddingHorizontal: 8 },
   tab: {
-    flex: 1,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    alignItems: "center",
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
@@ -243,40 +310,45 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   typeTab: {
-    flex: 1,
-    paddingVertical: 6,
-    alignItems: "center",
-    borderRadius: 6,
-    backgroundColor: "transparent",
+    flex: 1, paddingVertical: 6, alignItems: "center", borderRadius: 6, backgroundColor: "transparent",
   },
   typeTabActive: { backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 2, elevation: 1 },
   typeTabText: { fontSize: 12, fontWeight: "600", color: "#999" },
   typeTabTextActive: { color: "#333" },
 
+  sortScrollView: { backgroundColor: "#fafafa", borderBottomWidth: 1, borderBottomColor: "#eee" },
+  sortScrollContent: { paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexDirection: "row" },
+  sortChip: {
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+    backgroundColor: "#fff", borderWidth: 1, borderColor: "#ddd",
+  },
+  sortChipActive: { backgroundColor: "#007AFF", borderColor: "#007AFF" },
+  sortChipText: { fontSize: 12, fontWeight: "600", color: "#555" },
+  sortChipTextActive: { color: "#fff" },
+
   item: { padding: 16, borderBottomWidth: 1, borderBottomColor: "#eee" },
-  itemExpired: { opacity: 0.5 },
+  itemDimmed: { opacity: 0.55 },
   itemHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 8,
-    marginBottom: 4,
+    flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 4,
   },
   title: { fontSize: 16, fontWeight: "600", flex: 1 },
   textDimmed: { color: "#888" },
 
+  badgeRow: { flexDirection: "row", gap: 4, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 140 },
   badge: {
-    backgroundColor: "#f0f4ff",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    flexShrink: 0,
+    backgroundColor: "#f0f4ff", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2,
   },
-  badgeExpired: { backgroundColor: "#fff0f0" },
   badgeVoucher: { backgroundColor: "#f0fff4" },
   badgeText: { fontSize: 11, fontWeight: "600", color: "#007AFF", textTransform: "capitalize" },
-  badgeTextExpired: { color: "#FF3B30" },
   badgeTextVoucher: { color: "#34C759" },
+
+  // Status badge variants — accessed via dynamic key
+  badge_expired: { backgroundColor: "#fff0f0" },
+  badge_used: { backgroundColor: "#fff8e7" },
+  badge_archived: { backgroundColor: "#f5f5f5" },
+  badgeText_expired: { color: "#FF3B30" },
+  badgeText_used: { color: "#c07000" },
+  badgeText_archived: { color: "#888" },
 
   sub: { fontSize: 13, color: "#666", marginBottom: 4 },
   expiry: { fontSize: 12, marginTop: 2 },
@@ -286,15 +358,9 @@ const styles = StyleSheet.create({
 
   empty: { textAlign: "center", marginTop: 40, color: "#999" },
   fab: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    backgroundColor: "#007AFF",
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
+    position: "absolute", bottom: 24, right: 24,
+    backgroundColor: "#007AFF", width: 56, height: 56, borderRadius: 28,
+    alignItems: "center", justifyContent: "center",
   },
   fabText: { color: "#fff", fontSize: 28, lineHeight: 32 },
 });

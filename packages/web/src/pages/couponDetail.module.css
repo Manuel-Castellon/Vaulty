@@ -74,6 +74,14 @@
   margin-bottom: 6px;
 }
 
+.heroBadges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
 .heroTitle {
   font-size: 22px;
   font-weight: 800;
@@ -259,13 +267,115 @@
   background: #0062cc;
 }
 
-/* Delete */
-.deleteSection {
+/* Status badge variants on hero */
+.statusUsed {
+  background: rgba(255, 200, 0, 0.25);
+  color: #fff8cc;
+}
+
+.statusArchived {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.statusExpired {
+  background: rgba(255, 59, 48, 0.25);
+  color: #ffccc9;
+}
+
+.statusActive {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Lifecycle buttons */
+.lifecycleSection {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.lifecycleBtn {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.lifecycleBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lifecycleBtnUsed {
+  background: #fff8e7;
+  color: #c07000;
+  border: 1px solid #ffd07a;
+}
+
+.lifecycleBtnUsed.lifecycleBtnActive {
+  background: #ffd07a;
+  color: #7a4400;
+}
+
+.lifecycleBtnArchived {
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.lifecycleBtnArchived.lifecycleBtnActive {
+  background: #ddd;
+  color: #333;
+}
+
+/* QR code */
+.qrSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qrRaw {
+  font-size: 12px;
+  color: #888;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+/* Actions (Edit + Delete) */
+.actionSection {
   margin-top: 8px;
-  padding-top: 8px;
+  display: flex;
+  gap: 10px;
+}
+
+.editBtn {
+  flex: 1;
+  background: none;
+  border: 1px solid #007aff;
+  color: #007aff;
+  border-radius: 8px;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editBtn:hover {
+  background: #f0f4ff;
 }
 
 .deleteBtn {
+  flex: 1;
   background: none;
   border: 1px solid #ff3b30;
   color: #ff3b30;
@@ -274,7 +384,6 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  width: 100%;
 }
 
 .deleteBtn:hover {

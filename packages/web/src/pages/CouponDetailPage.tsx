@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import type { Coupon } from "@coupon/shared";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
+import type { Coupon, CouponStatus } from "@coupon/shared";
 import { api } from "../services/api";
 import styles from "./couponDetail.module.css";
 
@@ -21,6 +22,13 @@ function daysUntilExpiry(expiresAt: string): number {
   return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+function effectiveStatus(coupon: Coupon): CouponStatus {
+  const s = coupon.status ?? "active";
+  if (s === "used" || s === "archived") return s;
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) return "expired";
+  return "active";
+}
+
 export default function CouponDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -28,6 +36,7 @@ export default function CouponDetailPage() {
   const [loading, setLoading] = useState(true);
   const [amountInput, setAmountInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -41,9 +50,20 @@ export default function CouponDetailPage() {
   }, [id]);
 
   const handleDelete = async () => {
-    if (!id || !window.confirm("Delete this item?")) return;
+    if (!id || !window.confirm("Permanently delete this item? This cannot be undone.")) return;
     await api.coupons.delete(id);
     navigate("/");
+  };
+
+  const handleStatusUpdate = async (status: CouponStatus) => {
+    if (!id || !coupon) return;
+    setStatusUpdating(true);
+    try {
+      const updated = await api.coupons.update(id, { status });
+      setCoupon(updated);
+    } finally {
+      setStatusUpdating(false);
+    }
   };
 
   const handleAmountSave = async () => {
@@ -59,7 +79,11 @@ export default function CouponDetailPage() {
   if (loading) return <p className={styles.center}>Loading…</p>;
   if (!coupon) return <p className={styles.center}>Item not found.</p>;
 
-  // Amount tracking: works for fixed-discount coupons and credit vouchers
+  const status = effectiveStatus(coupon);
+  const isExpired = status === "expired";
+  const days = coupon.expiresAt ? daysUntilExpiry(coupon.expiresAt) : null;
+  const expiringSoon = days !== null && days > 0 && days <= 7;
+
   const trackingTotal =
     coupon.discount?.type === "fixed"
       ? coupon.discount.value
@@ -72,12 +96,21 @@ export default function CouponDetailPage() {
   const remaining = trackingTotal !== null ? trackingTotal - amountUsed : null;
   const progressPct = trackingTotal ? Math.min((amountUsed / trackingTotal) * 100, 100) : 0;
 
-  const isExpired = coupon.expiresAt ? new Date(coupon.expiresAt) < new Date() : false;
-  const days = coupon.expiresAt ? daysUntilExpiry(coupon.expiresAt) : null;
-  const expiringSoon = days !== null && days > 0 && days <= 7;
-
   const value = formatValue(coupon);
   const isVoucher = coupon.itemType === "voucher";
+
+  const STATUS_LABEL: Record<CouponStatus, string> = {
+    active: "Active",
+    used: "Used",
+    archived: "Archived",
+    expired: "Expired",
+  };
+  const STATUS_STYLE: Record<CouponStatus, string> = {
+    active: styles.statusActive,
+    used: styles.statusUsed,
+    archived: styles.statusArchived,
+    expired: styles.statusExpired,
+  };
 
   return (
     <div className={styles.page}>
@@ -92,9 +125,19 @@ export default function CouponDetailPage() {
         )}
         <div className={styles.heroTop}>
           <h1 className={styles.heroTitle}>{coupon.title}</h1>
-          <span className={`${styles.badge}${isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
-            {isVoucher ? "Voucher" : coupon.category}
-          </span>
+          <div className={styles.heroBadges}>
+            <span className={`${styles.badge}${isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
+              {isVoucher ? "Voucher" : coupon.category}
+            </span>
+            {isVoucher && (
+              <span className={styles.badge}>{coupon.category}</span>
+            )}
+            {status !== "active" && (
+              <span className={`${styles.badge} ${STATUS_STYLE[status]}`}>
+                {STATUS_LABEL[status]}
+              </span>
+            )}
+          </div>
         </div>
         <p className={styles.heroStore}>{coupon.store}</p>
         {value && <p className={styles.heroDiscount}>{value}</p>}
@@ -148,19 +191,34 @@ export default function CouponDetailPage() {
             </span>
           </div>
         )}
-        {coupon.qrCode && (
+        {(coupon.qrCode || coupon.qrImageUrl) && (
           <div className={styles.row}>
             <span className={styles.rowLabel}>QR Code</span>
-            <span className={styles.rowValue}>{coupon.qrCode}</span>
+            <div className={styles.qrSection}>
+              {coupon.qrCode
+                ? <QRCodeSVG value={coupon.qrCode} size={160} />
+                : <img src={coupon.qrImageUrl} alt="QR code" style={{ width: 160, height: 160, objectFit: "contain" }} />
+              }
+              {coupon.qrCode && <span className={styles.qrRaw}>{coupon.qrCode}</span>}
+            </div>
+          </div>
+        )}
+        {coupon.issueDate && (
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>Issued</span>
+            <span className={styles.rowValue}>{new Date(coupon.issueDate).toLocaleDateString()}</span>
           </div>
         )}
         <div className={styles.row}>
           <span className={styles.rowLabel}>Used</span>
-          <span className={styles.rowValue}>{coupon.usageCount} time{coupon.usageCount !== 1 ? "s" : ""}</span>
+          <span className={styles.rowValue}>
+            {coupon.usageCount} time{coupon.usageCount !== 1 ? "s" : ""}
+            {coupon.maxUsage ? ` of ${coupon.maxUsage}` : ""}
+          </span>
         </div>
       </div>
 
-      {/* Amount tracker — fixed-discount coupons and credit vouchers */}
+      {/* Amount tracker */}
       {trackingTotal !== null && (
         <div className={styles.trackerCard}>
           <p className={styles.trackerTitle}>Amount Tracker</p>
@@ -191,10 +249,31 @@ export default function CouponDetailPage() {
         </div>
       )}
 
-      {/* Delete */}
-      <div className={styles.deleteSection}>
+      {/* Lifecycle actions */}
+      <div className={styles.lifecycleSection}>
+        <button
+          className={`${styles.lifecycleBtn} ${styles.lifecycleBtnUsed}${status === "used" ? ` ${styles.lifecycleBtnActive}` : ""}`}
+          onClick={() => handleStatusUpdate(status === "used" ? "active" : "used")}
+          disabled={statusUpdating}
+        >
+          {status === "used" ? "✓ Marked Used" : "Mark as Used"}
+        </button>
+        <button
+          className={`${styles.lifecycleBtn} ${styles.lifecycleBtnArchived}${status === "archived" ? ` ${styles.lifecycleBtnActive}` : ""}`}
+          onClick={() => handleStatusUpdate(status === "archived" ? "active" : "archived")}
+          disabled={statusUpdating}
+        >
+          {status === "archived" ? "✓ Archived" : "Archive"}
+        </button>
+      </div>
+
+      {/* Edit + Delete */}
+      <div className={styles.actionSection}>
+        <Link to={`/coupons/${id}/edit`} className={styles.editBtn}>
+          Edit
+        </Link>
         <button className={styles.deleteBtn} onClick={handleDelete}>
-          Delete {isVoucher ? "Voucher" : "Coupon"}
+          Delete
         </button>
       </div>
     </div>

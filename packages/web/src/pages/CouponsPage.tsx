@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useCoupons } from "../hooks/useCoupons";
-import type { Coupon, CouponCategory } from "@coupon/shared";
+import type { Coupon, CouponCategory, CouponStatus } from "@coupon/shared";
 import { api } from "../services/api";
 import styles from "./coupons.module.css";
 
@@ -22,9 +22,7 @@ function formatValue(coupon: Coupon): string | null {
 }
 
 function daysUntilExpiry(expiresAt: string): number {
-  const now = Date.now();
-  const exp = new Date(expiresAt).getTime();
-  return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
 function expiryLabel(expiresAt: string | undefined): { text: string; warn: boolean; expired: boolean } {
@@ -36,19 +34,33 @@ function expiryLabel(expiresAt: string | undefined): { text: string; warn: boole
   return { text: `Expires ${new Date(expiresAt).toLocaleDateString()}`, warn: false, expired: false };
 }
 
-type SortOption = "expiry" | "added";
-type StatusFilter = "all" | "active" | "expired";
+// Derives the effective display status, giving manual status priority over date-expiry
+function effectiveStatus(coupon: Coupon): CouponStatus {
+  const s = coupon.status ?? "active";
+  if (s === "used" || s === "archived") return s;
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) return "expired";
+  return "active";
+}
+
+type SortOption = "expiry" | "added" | "merchant" | "category" | "status";
+type StatusFilter = "all" | "active" | "used" | "archived" | "expired";
 type ItemTypeFilter = "all" | "coupon" | "voucher";
+
+const STATUS_ORDER: Record<CouponStatus, number> = { active: 0, used: 1, archived: 2, expired: 3 };
 
 export default function CouponsPage() {
   const { coupons, loading, error, deleteCoupon } = useCoupons();
+  const [searchParams] = useSearchParams();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Coupon[] | null>(null);
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [itemTypeFilter, setItemTypeFilter] = useState<ItemTypeFilter>("all");
+  const initialType = (searchParams.get("type") as ItemTypeFilter) ?? "all";
+  const [itemTypeFilter, setItemTypeFilter] = useState<ItemTypeFilter>(
+    ["all", "coupon", "voucher"].includes(initialType) ? initialType : "all"
+  );
   const [categoryFilter, setCategoryFilter] = useState<CouponCategory | "all">("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("expiry");
@@ -75,7 +87,6 @@ export default function CouponsPage() {
   }, [searchQuery]);
 
   const filtered = useMemo(() => {
-    // In search mode, show ranked results without further filtering
     if (searchResults !== null) return searchResults;
 
     let result = [...coupons];
@@ -83,27 +94,33 @@ export default function CouponsPage() {
     if (itemTypeFilter !== "all") {
       result = result.filter((c) => c.itemType === itemTypeFilter);
     }
-
     if (categoryFilter !== "all") {
       result = result.filter((c) => c.category === categoryFilter);
     }
-
-    if (statusFilter === "active") {
-      result = result.filter((c) => !c.expiresAt || new Date(c.expiresAt) >= new Date());
-    } else if (statusFilter === "expired") {
-      result = result.filter((c) => c.expiresAt && new Date(c.expiresAt) < new Date());
+    if (statusFilter !== "all") {
+      result = result.filter((c) => effectiveStatus(c) === statusFilter);
     }
 
     result.sort((a, b) => {
-      if (sortBy === "expiry") {
-        if (!a.expiresAt && !b.expiresAt) return 0;
-        if (!a.expiresAt) return 1;
-        if (!b.expiresAt) return -1;
-        return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+      switch (sortBy) {
+        case "expiry": {
+          if (!a.expiresAt && !b.expiresAt) return 0;
+          if (!a.expiresAt) return 1;
+          if (!b.expiresAt) return -1;
+          return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+        }
+        case "added": {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        }
+        case "merchant":
+          return a.store.localeCompare(b.store);
+        case "category":
+          return a.category.localeCompare(b.category);
+        case "status":
+          return STATUS_ORDER[effectiveStatus(a)] - STATUS_ORDER[effectiveStatus(b)];
       }
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return bTime - aTime;
     });
 
     return result;
@@ -170,7 +187,7 @@ export default function CouponsPage() {
               <div className={styles.filterGroup}>
                 <label className={styles.filterLabel}>Status</label>
                 <div className={styles.toggleGroup}>
-                  {(["all", "active", "expired"] as StatusFilter[]).map((s) => (
+                  {(["all", "active", "used", "archived", "expired"] as StatusFilter[]).map((s) => (
                     <button
                       key={s}
                       className={`${styles.toggleBtn}${statusFilter === s ? ` ${styles.toggleBtnActive}` : ""}`}
@@ -189,8 +206,11 @@ export default function CouponsPage() {
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
                 >
-                  <option value="expiry">Expiry (soonest first)</option>
-                  <option value="added">Date added (newest first)</option>
+                  <option value="expiry">Expiring soon</option>
+                  <option value="added">Newest first</option>
+                  <option value="merchant">Merchant (A–Z)</option>
+                  <option value="category">Category (A–Z)</option>
+                  <option value="status">Status</option>
                 </select>
               </div>
             </div>
@@ -216,9 +236,9 @@ export default function CouponsPage() {
       ) : (
         <ul className={styles.grid}>
           {filtered.map((coupon) => {
-            const isExpired = coupon.expiresAt
-              ? new Date(coupon.expiresAt) < new Date()
-              : false;
+            const status = effectiveStatus(coupon);
+            const isExpired = status === "expired";
+            const isDimmed = status === "expired" || status === "used" || status === "archived";
             const expiry = expiryLabel(coupon.expiresAt);
             const value = formatValue(coupon);
             const isVoucher = coupon.itemType === "voucher";
@@ -226,19 +246,32 @@ export default function CouponsPage() {
             return (
               <li
                 key={coupon.id}
-                className={`${styles.card}${isExpired ? ` ${styles.cardExpired}` : ""}${isVoucher ? ` ${styles.cardVoucher}` : ""}`}
+                className={`${styles.card}${isDimmed ? ` ${styles.cardDimmed}` : ""}${isVoucher ? ` ${styles.cardVoucher}` : ""}`}
               >
                 <Link to={`/coupons/${coupon.id}`} className={styles.cardLink}>
                   <div className={styles.cardTop}>
                     <h2 className={styles.cardTitle}>{coupon.title}</h2>
-                    <span className={`${styles.badge}${isExpired ? ` ${styles.badgeExpired}` : isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
-                      {isExpired ? "Expired" : isVoucher ? "Voucher" : coupon.category}
-                    </span>
+                    <div className={styles.badgeRow}>
+                      {/* Type / category badge — always shown */}
+                      <span className={`${styles.badge}${isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
+                        {isVoucher ? "Voucher" : coupon.category}
+                      </span>
+                      {/* Category badge for vouchers */}
+                      {isVoucher && (
+                        <span className={styles.badge}>{coupon.category}</span>
+                      )}
+                      {/* Status badge — only for non-active */}
+                      {status !== "active" && (
+                        <span className={`${styles.badge} ${styles[`badge_${status}`]}`}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className={styles.cardStore}>{coupon.store}</p>
                   {value && <p className={styles.discount}>{value}</p>}
                   <div className={styles.cardMeta}>
-                    <span className={expiry.expired ? styles.expiry : expiry.warn ? styles.expiryWarn : styles.expiry}>
+                    <span className={isExpired ? styles.expiryExpired : expiry.warn ? styles.expiryWarn : styles.expiry}>
                       {expiry.text}
                     </span>
                   </div>
