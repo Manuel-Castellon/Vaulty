@@ -213,6 +213,19 @@ These indicate model-output variability remains for some fixtures; this is not o
 - `npm run test --workspace=packages/backend -- src/functions/ai/__tests__/extract.test.js --runInBand` ✅
 - `npm run typecheck --workspace=packages/backend` ✅
 
+## CI/CD Note (MVP pragmatism)
+
+Current recommendation for MVP pace:
+- Keep deploy workflow lean enough to avoid blocking frequent iteration.
+- Preserve at least one backend extraction unit gate plus typechecks.
+
+Deferred hardening to re-enable/enforce post-MVP:
+1. Full backend test suite gate (not only extraction-focused tests).
+2. Web test suite gate beyond add-flow extraction test.
+3. Mobile automated tests once coverage is in place (currently mostly manual smoke).
+4. Branch protection requiring all status checks before merge.
+5. Post-deploy smoke job hitting extraction endpoint and alerting on repeated failures.
+
 ## Session Update (2026-04-10, Phase 2.5)
 
 ### Phase 2.5 delivered
