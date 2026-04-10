@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -105,11 +105,31 @@ export default function AddCouponScreen() {
   const [showAdvancedQr, setShowAdvancedQr] = useState(false);
   const [qrImageS3Key, setQrImageS3Key] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!cooldownUntilMs) {
+      setCooldownSeconds(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntilMs - Date.now()) / 1000));
+      setCooldownSeconds(remaining);
+      if (remaining <= 0) {
+        setCooldownUntilMs(null);
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownUntilMs]);
 
   const set = (field: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
 
   const handleExtract = async (asset: ImagePicker.ImagePickerAsset, mimeType: string) => {
+    if (cooldownSeconds > 0) return;
     if (!asset.base64) {
       Alert.alert("Extraction failed", "Image data was unavailable.");
       return;
@@ -172,6 +192,13 @@ export default function AddCouponScreen() {
       if (isTemporaryUnavailable) {
         setManualFallbackHint(null);
         setExtractError(message);
+        const retryMatch = message.match(/about\s+(\d+)\s+seconds/i);
+        if (retryMatch) {
+          const seconds = Number(retryMatch[1]);
+          if (Number.isFinite(seconds) && seconds > 0) {
+            setCooldownUntilMs(Date.now() + seconds * 1000);
+          }
+        }
       } else {
         setExtractError(message);
         Alert.alert("Extraction failed", message);
@@ -182,6 +209,7 @@ export default function AddCouponScreen() {
   };
 
   const pickImage = async () => {
+    if (cooldownSeconds > 0) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       base64: true,
@@ -193,6 +221,7 @@ export default function AddCouponScreen() {
   };
 
   const takePhoto = async () => {
+    if (cooldownSeconds > 0) return;
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission required", "Camera access is needed to scan vouchers.");
@@ -267,14 +296,15 @@ export default function AddCouponScreen() {
         <Text style={styles.extractLabel}>Auto-fill from photo or text</Text>
         <Text style={styles.extractHint}>For QR extraction, upload or take a photo or screenshot.</Text>
         <View style={styles.scanRow}>
-          <TouchableOpacity style={styles.scanBtn} onPress={takePhoto} disabled={extracting}>
+          <TouchableOpacity style={styles.scanBtn} onPress={takePhoto} disabled={extracting || cooldownSeconds > 0}>
             <Text style={styles.scanBtnText}>📷 Camera</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.scanBtn} onPress={pickImage} disabled={extracting}>
+          <TouchableOpacity style={styles.scanBtn} onPress={pickImage} disabled={extracting || cooldownSeconds > 0}>
             <Text style={styles.scanBtnText}>🖼 Gallery</Text>
           </TouchableOpacity>
           {extracting && <ActivityIndicator color="#007AFF" />}
         </View>
+        {cooldownSeconds > 0 && <Text style={styles.extractWarning}>You can try again in about {cooldownSeconds}s.</Text>}
         {extractWarning && <Text style={styles.extractWarning}>{extractWarning}</Text>}
         {extractError && <Text style={styles.extractError}>{extractError}</Text>}
         {qrExtractionHint && <Text style={styles.extractHint}>{qrExtractionHint}</Text>}

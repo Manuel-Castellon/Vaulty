@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import jsQR from "jsqr";
 import { api } from "../services/api";
@@ -97,6 +97,25 @@ export default function AddCouponPage() {
   const [pasteText, setPasteText] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!cooldownUntilMs) {
+      setCooldownSeconds(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntilMs - Date.now()) / 1000));
+      setCooldownSeconds(remaining);
+      if (remaining <= 0) {
+        setCooldownUntilMs(null);
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownUntilMs]);
 
   const set = (field: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
@@ -150,6 +169,7 @@ export default function AddCouponPage() {
   };
 
   const handleExtractFile = async (file: File) => {
+    if (cooldownSeconds > 0) return;
     setExtractError(null);
     setExtractWarning(null);
     setExtractHint(null);
@@ -215,6 +235,13 @@ export default function AddCouponPage() {
       if (isTemporaryUnavailable) {
         setManualFallbackHint(null);
         setExtractError(message);
+        const retryMatch = message.match(/about\s+(\d+)\s+seconds/i);
+        if (retryMatch) {
+          const seconds = Number(retryMatch[1]);
+          if (Number.isFinite(seconds) && seconds > 0) {
+            setCooldownUntilMs(Date.now() + seconds * 1000);
+          }
+        }
       } else {
         setExtractError(message);
       }
@@ -224,6 +251,7 @@ export default function AddCouponPage() {
   };
 
   const handleExtractText = async () => {
+    if (cooldownSeconds > 0) return;
     if (!pasteText.trim()) return;
     setExtractError(null);
     setExtractWarning(null);
@@ -258,6 +286,13 @@ export default function AddCouponPage() {
       if (isTemporaryUnavailable) {
         setManualFallbackHint(null);
         setExtractError(message);
+        const retryMatch = message.match(/about\s+(\d+)\s+seconds/i);
+        if (retryMatch) {
+          const seconds = Number(retryMatch[1]);
+          if (Number.isFinite(seconds) && seconds > 0) {
+            setCooldownUntilMs(Date.now() + seconds * 1000);
+          }
+        }
       } else {
         setExtractError(message);
       }
@@ -346,7 +381,7 @@ export default function AddCouponPage() {
             type="button"
             className={styles.extractBtn}
             onClick={() => fileInputRef.current?.click()}
-            disabled={extracting}
+            disabled={extracting || cooldownSeconds > 0}
           >
             Upload PDF / Image
           </button>
@@ -354,7 +389,7 @@ export default function AddCouponPage() {
             type="button"
             className={styles.extractBtn}
             onClick={() => setShowPaste((v) => !v)}
-            disabled={extracting}
+            disabled={extracting || cooldownSeconds > 0}
           >
             Paste text
           </button>
@@ -372,11 +407,14 @@ export default function AddCouponPage() {
               type="button"
               className={styles.extractRunBtn}
               onClick={handleExtractText}
-              disabled={extracting || !pasteText.trim()}
+              disabled={extracting || cooldownSeconds > 0 || !pasteText.trim()}
             >
               {extracting ? "Extracting…" : "Extract →"}
             </button>
           </div>
+        )}
+        {cooldownSeconds > 0 && (
+          <p className={styles.extractWarning}>You can try again in about {cooldownSeconds}s.</p>
         )}
         {extracting && !showPaste && (
           <p className={styles.extractStatus}>Extracting…</p>
