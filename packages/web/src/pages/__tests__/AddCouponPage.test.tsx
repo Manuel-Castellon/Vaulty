@@ -249,4 +249,44 @@ describe("AddCouponPage", () => {
       expect(navigateMock).toHaveBeenCalledWith("/?type=voucher");
     });
   });
+
+  test("persists detected QR data and shows extraction hint", async () => {
+    vi.mocked(api.ai.extract).mockResolvedValue({
+      extraction: {
+        itemType: "voucher",
+        title: "Voucher title",
+        store: "Store",
+        code: "ABC123",
+      },
+    });
+    vi.mocked(api.coupons.create).mockResolvedValue({
+      id: "1",
+      userId: "u1",
+      itemType: "voucher",
+      code: "ABC123",
+      title: "Voucher title",
+      store: "Store",
+      category: "other",
+      isActive: true,
+      usageCount: 0,
+      createdAt: "",
+      updatedAt: "",
+    });
+    vi.mocked(jsQR).mockReturnValue({ data: "https://example.com/qr" } as never);
+
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "Voucher" }));
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await userEvent.upload(fileInput, new File(["test"], "voucher.png", { type: "image/png" }));
+
+    await screen.findByText("QR payload detected and added. It will be shown on the saved voucher.");
+    await userEvent.click(screen.getByRole("button", { name: /save voucher/i }));
+
+    await waitFor(() => {
+      expect(api.coupons.create).toHaveBeenCalled();
+    });
+    expect(vi.mocked(api.coupons.create).mock.calls[0][0]).toMatchObject({
+      qrCode: "https://example.com/qr",
+    });
+  });
 });

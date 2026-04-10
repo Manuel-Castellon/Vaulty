@@ -1,4 +1,4 @@
-const { handler } = require("../extract.ts");
+const { handler, __resetQuotaCooldownForTests } = require("../extract.ts");
 
 function createEvent(body) {
   return {
@@ -22,6 +22,7 @@ describe("extract handler", () => {
   beforeEach(() => {
     process.env.GEMINI_API_KEY = "test-key";
     global.fetch = jest.fn();
+    __resetQuotaCooldownForTests();
   });
 
   afterEach(() => {
@@ -103,6 +104,24 @@ describe("extract handler", () => {
     expect(body.extraction.title).toBe("Voucher");
   });
 
+  test("hebrew document allows latin store brand without retry", async () => {
+    global.fetch.mockResolvedValueOnce(geminiResponse(JSON.stringify({
+      sourceLanguage: "he",
+      sourceScript: "hebrew",
+      title: "שובר ב-60 ₪ למימוש 100 ₪ באתר ובאפליקציית WOLT",
+      store: "WOLT",
+      itemType: "voucher",
+    })));
+
+    const response = await handler(createEvent({ text: "שובר וולט" }));
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(200);
+    expect(body.extraction.store).toBe("WOLT");
+    expect(body.warnings).toBeUndefined();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   test("latin documents do not retry", async () => {
     global.fetch.mockResolvedValueOnce(geminiResponse(JSON.stringify({
       sourceLanguage: "en",
@@ -168,6 +187,60 @@ describe("extract handler", () => {
         },
       }),
     });
+
+    const response = await handler(createEvent({ text: "coupon" }));
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(500);
+    expect(body.error.message).toContain("temporarily unavailable");
+    expect(body.error.message).toContain("manually");
+  });
+
+  test("quota exhaustion includes retry delay when available", async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      json: async () => ({
+        error: {
+          status: "RESOURCE_EXHAUSTED",
+          message: "quota hit",
+          details: [{ retryDelay: "31s" }],
+        },
+      }),
+    });
+
+    const response = await handler(createEvent({ text: "coupon" }));
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(500);
+    expect(body.error.message).toContain("about 31 seconds");
+  });
+
+  test("repeated same request within cooldown is short-circuited", async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      json: async () => ({
+        error: {
+          status: "RESOURCE_EXHAUSTED",
+          message: "quota hit",
+          details: [{ retryDelay: "20s" }],
+        },
+      }),
+    });
+
+    const event = createEvent({ text: "same request" });
+    await handler(event);
+    const response = await handler(event);
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(500);
+    expect(body.error.message).toContain("about");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("network fetch failure returns a manual entry message", async () => {
+    global.fetch.mockRejectedValueOnce(new TypeError("fetch failed"));
 
     const response = await handler(createEvent({ text: "coupon" }));
     const body = JSON.parse(response.body);

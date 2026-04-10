@@ -63,6 +63,7 @@ export default function EditCouponPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showAdvancedQr, setShowAdvancedQr] = useState(false);
 
   const set = (field: keyof FormState, value: string) =>
     setForm((f) => f ? { ...f, [field]: value } : f);
@@ -294,10 +295,19 @@ export default function EditCouponPage() {
               <input className={styles.input} type="number" value={form.maxUsage} onChange={(e) => set("maxUsage", e.target.value)} min="1" />
             </label>
 
-            <label className={styles.label}>
-              QR Code / Barcode data
-              <input className={styles.input} value={form.qrCode} onChange={(e) => set("qrCode", e.target.value)} />
-            </label>
+            <button
+              type="button"
+              className={styles.extractBtn}
+              onClick={() => setShowAdvancedQr((value) => !value)}
+            >
+              {showAdvancedQr ? "Hide advanced scan data" : "Show advanced scan data"}
+            </button>
+            {showAdvancedQr && (
+              <label className={styles.label}>
+                QR Code / Barcode data (advanced)
+                <input className={styles.input} value={form.qrCode} onChange={(e) => set("qrCode", e.target.value)} />
+              </label>
+            )}
           </div>
 
           <div className={styles.actions}>

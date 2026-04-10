@@ -43,6 +43,7 @@ export default function CouponDetailScreen() {
   const [amountInput, setAmountInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [showQrRaw, setShowQrRaw] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -160,7 +161,16 @@ export default function CouponDetailScreen() {
             ? <QRCode value={coupon.qrCode} size={180} />
             : <Image source={{ uri: coupon.qrImageUrl }} style={{ width: 180, height: 180 }} resizeMode="contain" />
           }
-          {coupon.qrCode && <Text style={styles.qrRaw}>{coupon.qrCode}</Text>}
+          {coupon.qrCode && (
+            <>
+              <TouchableOpacity style={styles.rawToggleBtn} onPress={() => setShowQrRaw((value) => !value)}>
+                <Text style={styles.rawToggleBtnText}>
+                  {showQrRaw ? "Hide raw scan data" : "Show raw scan data"}
+                </Text>
+              </TouchableOpacity>
+              {showQrRaw && <Text style={styles.qrRaw}>{coupon.qrCode}</Text>}
+            </>
+          )}
         </View>
       )}
       {coupon.issueDate && (
@@ -301,6 +311,16 @@ const styles = StyleSheet.create({
   qrBlock: {
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#eee", alignItems: "center", gap: 8,
   },
+  rawToggleBtn: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: "#d8dbe2",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  rawToggleBtnText: { fontSize: 12, fontWeight: "600", color: "#475467" },
   qrRaw: { fontSize: 11, color: "#aaa", fontFamily: "monospace", textAlign: "center" },
 
   // Lifecycle buttons

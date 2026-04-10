@@ -91,6 +91,8 @@ export default function AddCouponPage() {
   const [extractWarning, setExtractWarning] = useState<string | null>(null);
   const [extractHint, setExtractHint] = useState<string | null>(null);
   const [manualFallbackHint, setManualFallbackHint] = useState<string | null>(null);
+  const [qrExtractionHint, setQrExtractionHint] = useState<string | null>(null);
+  const [showAdvancedQr, setShowAdvancedQr] = useState(false);
   const [qrImageS3Key, setQrImageS3Key] = useState<string | undefined>(undefined);
   const [pasteText, setPasteText] = useState("");
   const [showPaste, setShowPaste] = useState(false);
@@ -152,7 +154,13 @@ export default function AddCouponPage() {
     setExtractWarning(null);
     setExtractHint(null);
     setManualFallbackHint(null);
+    setQrExtractionHint(null);
     setExtracting(true);
+    console.info("[add-coupon][extract] started", {
+      source: "file",
+      mimeType: file.type,
+      itemType,
+    });
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -174,6 +182,7 @@ export default function AddCouponPage() {
         isImage ? decodeQrFromImage(file) : Promise.resolve(null),
       ]);
 
+      const hasServerQrImage = aiResult.status === "fulfilled" && !!aiResult.value.qrImageS3Key;
       if (aiResult.status === "fulfilled") {
         applyAiExtraction(aiResult.value.extraction, aiResult.value.warnings, aiResult.value.qrImageS3Key);
       } else {
@@ -186,11 +195,28 @@ export default function AddCouponPage() {
       if (qrCode) {
         setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
       }
+      const qrDetectionType = qrCode ? "payload" : hasServerQrImage ? "image" : "none";
+      console.info("[add-coupon][extract] completed", {
+        source: "file",
+        qrDetectionType,
+      });
+      setQrExtractionHint(qrCode
+        ? "QR payload detected and added. It will be shown on the saved voucher."
+        : hasServerQrImage
+          ? "QR image detected and saved. It will be shown on the saved voucher."
+          : "No QR was detected from this file.");
     } catch (err: any) {
       const message = err.message ?? "Extraction failed";
-      setExtractError(message);
-      if (/temporarily unavailable|manually/i.test(message)) {
-        setManualFallbackHint("Scanning is temporarily unavailable right now. You can still fill in the form manually below and save the voucher.");
+      console.info("[add-coupon][extract] failed", {
+        source: "file",
+        message,
+      });
+      const isTemporaryUnavailable = /temporarily unavailable|manually/i.test(message);
+      if (isTemporaryUnavailable) {
+        setManualFallbackHint(null);
+        setExtractError(message);
+      } else {
+        setExtractError(message);
       }
     } finally {
       setExtracting(false);
@@ -204,15 +230,36 @@ export default function AddCouponPage() {
     setExtractHint(null);
     setManualFallbackHint(null);
     setExtracting(true);
+    console.info("[add-coupon][extract] started", {
+      source: "text",
+      itemType,
+    });
     try {
       const response = await api.ai.extract({ text: pasteText });
       applyAiExtraction(response.extraction, response.warnings, response.qrImageS3Key);
+      const qrDetectionType = response.qrImageS3Key ? "image" : "none";
+      console.info("[add-coupon][extract] completed", {
+        source: "text",
+        qrDetectionType,
+      });
+      setQrExtractionHint(
+        response.qrImageS3Key
+          ? "QR image detected and saved. It will be shown on the saved voucher."
+          : "No QR was detected from this text."
+      );
       setShowPaste(false);
     } catch (err: any) {
       const message = err.message ?? "Extraction failed";
-      setExtractError(message);
-      if (/temporarily unavailable|manually/i.test(message)) {
-        setManualFallbackHint("Scanning is temporarily unavailable right now. You can still fill in the form manually below and save the voucher.");
+      console.info("[add-coupon][extract] failed", {
+        source: "text",
+        message,
+      });
+      const isTemporaryUnavailable = /temporarily unavailable|manually/i.test(message);
+      if (isTemporaryUnavailable) {
+        setManualFallbackHint(null);
+        setExtractError(message);
+      } else {
+        setExtractError(message);
       }
     } finally {
       setExtracting(false);
@@ -255,8 +302,17 @@ export default function AddCouponPage() {
         qrCode: form.qrCode || undefined,
         qrImageS3Key: qrImageS3Key || undefined,
       });
+      console.info("[add-coupon][save] success", {
+        itemType,
+        qrPayloadSaved: Boolean(form.qrCode),
+        qrImageSaved: Boolean(qrImageS3Key),
+      });
       navigate(`/?type=${itemType}`);
     } catch (err: any) {
+      console.info("[add-coupon][save] failed", {
+        itemType,
+        message: err.message,
+      });
       setError(err.message);
     } finally {
       setSubmitting(false);
@@ -328,6 +384,7 @@ export default function AddCouponPage() {
         {extractHint && <p className={styles.extractHint}>{extractHint}</p>}
         {extractWarning && <p className={styles.extractWarning}>{extractWarning}</p>}
         {extractError && <p className={styles.extractError}>{extractError}</p>}
+        {qrExtractionHint && <p className={styles.extractHint}>{qrExtractionHint}</p>}
         {manualFallbackHint && <p className={styles.extractManualHint}>{manualFallbackHint}</p>}
       </div>
 
@@ -543,10 +600,19 @@ export default function AddCouponPage() {
               <input className={styles.input} type="number" value={form.maxUsage} onChange={(e) => set("maxUsage", e.target.value)} placeholder="e.g. 1" min="1" />
             </label>
 
-            <label className={styles.label}>
-              QR Code / Barcode data
-              <input className={styles.input} value={form.qrCode} onChange={(e) => set("qrCode", e.target.value)} placeholder="e.g. barcode data or URL" />
-            </label>
+            <button
+              type="button"
+              className={styles.extractBtn}
+              onClick={() => setShowAdvancedQr((value) => !value)}
+            >
+              {showAdvancedQr ? "Hide advanced scan data" : "Show advanced scan data"}
+            </button>
+            {showAdvancedQr && (
+              <label className={styles.label}>
+                QR Code / Barcode data (advanced)
+                <input className={styles.input} value={form.qrCode} onChange={(e) => set("qrCode", e.target.value)} placeholder="Raw scan payload" />
+              </label>
+            )}
           </div>
 
           <div className={styles.actions}>

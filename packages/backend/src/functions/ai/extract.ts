@@ -8,6 +8,7 @@
  * QR detection runs in parallel via jsQR for image uploads.
  */
 import { APIGatewayProxyHandler } from "aws-lambda";
+import { createHash } from "crypto";
 import { ok, badRequest, serverError } from "../../lib/response";
 import type { ExtractResponse, ExtractionResult, ExtractRequest, SourceScript } from "@coupon/shared";
 import { runExtractionPipeline } from "../../services/extractionPipeline";
@@ -83,11 +84,63 @@ const SCRIPT_PATTERNS: Record<Exclude<SourceScript, "latin" | "other">, RegExp> 
 };
 
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const QUOTA_COOLDOWN_FALLBACK_SECONDS = 30;
+const quotaCooldownByKey = new Map<string, number>();
 
 class GeminiQuotaError extends Error {
-  constructor() {
+  retryAfterSeconds?: number;
+  constructor(retryAfterSeconds?: number) {
     super("gemini_quota_exhausted");
+    this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+function parseRetryAfterSeconds(errorDetails: unknown): number | undefined {
+  if (!Array.isArray(errorDetails)) return undefined;
+  for (const detail of errorDetails) {
+    if (!detail || typeof detail !== "object") continue;
+    const maybeRetryDelay = (detail as { retryDelay?: unknown }).retryDelay;
+    if (typeof maybeRetryDelay !== "string") continue;
+    const match = maybeRetryDelay.match(/(\d+)/);
+    if (!match) continue;
+    const parsed = Number(match[1]);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return undefined;
+}
+
+function hashInputBody(body: ExtractRequest): string {
+  const hash = createHash("sha1");
+  if (body.data) hash.update(body.data);
+  if (body.mimeType) hash.update(body.mimeType);
+  if (body.s3Key) hash.update(body.s3Key);
+  if (body.text) hash.update(body.text);
+  return hash.digest("hex");
+}
+
+function buildQuotaKey(event: Parameters<APIGatewayProxyHandler>[0], body: ExtractRequest): string {
+  const userId = event.requestContext?.authorizer?.claims?.sub ?? "anonymous";
+  return `${userId}:${hashInputBody(body)}`;
+}
+
+function getRemainingCooldownSeconds(quotaKey: string, nowMs: number): number | undefined {
+  const until = quotaCooldownByKey.get(quotaKey);
+  if (!until) return undefined;
+  if (nowMs >= until) {
+    quotaCooldownByKey.delete(quotaKey);
+    return undefined;
+  }
+  return Math.max(1, Math.ceil((until - nowMs) / 1000));
+}
+
+function storeQuotaCooldown(quotaKey: string, retryAfterSeconds?: number): number {
+  const cooldownSeconds = retryAfterSeconds ?? QUOTA_COOLDOWN_FALLBACK_SECONDS;
+  quotaCooldownByKey.set(quotaKey, Date.now() + cooldownSeconds * 1000);
+  return cooldownSeconds;
+}
+
+export function __resetQuotaCooldownForTests() {
+  quotaCooldownByKey.clear();
 }
 
 function buildPrompt(extraInstruction?: string) {
@@ -110,6 +163,8 @@ function validateLanguagePreservation(extracted: ExtractionResult): boolean {
   return TEXT_FIELDS.every((field) => {
     const value = extracted[field];
     if (typeof value !== "string" || value.trim().length === 0) return true;
+    // Brand/store names are often Latin even in Hebrew/Arabic vouchers (e.g. WOLT).
+    if (field === "store" && /^[A-Za-z0-9 .&'’\-_/]+$/.test(value.trim())) return true;
     return expectedPattern.test(value) || !/[A-Za-z]/.test(value);
   });
 }
@@ -139,14 +194,16 @@ async function callGemini(
   });
 
   const gemini = (await resp.json()) as {
-    error?: { message: string; status?: string };
+    error?: { message: string; status?: string; details?: unknown };
     candidates?: { content: { parts: { text: string }[] } }[];
   };
 
   if (!resp.ok || gemini.error) {
-    console.error("Gemini error:", gemini.error);
+    const failureClass =
+      resp.status === 429 || gemini.error?.status === "RESOURCE_EXHAUSTED" ? "quota" : "provider_error";
+    console.error("[extract][gemini_error]", { failureClass, statusCode: resp.status, error: gemini.error });
     if (resp.status === 429 || gemini.error?.status === "RESOURCE_EXHAUSTED") {
-      throw new GeminiQuotaError();
+      throw new GeminiQuotaError(parseRetryAfterSeconds(gemini.error?.details));
     }
     throw new Error("gemini_error");
   }
@@ -220,6 +277,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (!hasFile && !body.text) {
     return badRequest("Provide either data+mimeType, s3Key, or text");
   }
+  const quotaKey = buildQuotaKey(event, body);
+  const remainingCooldownSeconds = getRemainingCooldownSeconds(quotaKey, Date.now());
+  if (remainingCooldownSeconds) {
+    console.error("[extract][quota_cooldown_short_circuit]", {
+      failureClass: "quota",
+      remainingCooldownSeconds,
+    });
+    return serverError(
+      `AI scanning is temporarily unavailable. Please try again in about ${remainingCooldownSeconds} seconds. You can still enter the voucher details manually and try scanning again later.`
+    );
+  }
 
   // ── Bedrock path (Claude Vision, no Textract) ─────────────────────────────
   if (process.env.BEDROCK_ENABLED === "true") {
@@ -233,7 +301,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       return ok<ExtractResponse>(result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error("Bedrock pipeline error:", msg);
+      console.error("[extract][bedrock_pipeline_error]", { failureClass: "provider_error", message: msg });
       if (msg === "missing_input") return badRequest("Provide either data+mimeType, s3Key, or text");
       return serverError("Extraction failed — try again");
     }
@@ -247,14 +315,27 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const result = await handleGemini(apiKey, body);
     return ok<ExtractResponse>(result);
   } catch (err) {
-    console.error("Extraction error:", err);
+    console.error("[extract][handler_error]", { failureClass: "unknown", error: err });
     if (err instanceof GeminiQuotaError) {
+      const cooldownSeconds = storeQuotaCooldown(quotaKey, err.retryAfterSeconds);
+      const retryIn =
+        ` Please try again in about ${cooldownSeconds} seconds.`;
+      return serverError(
+        `AI scanning is temporarily unavailable.${retryIn} You can still enter the voucher details manually and try scanning again later.`
+      );
+    }
+    if (err instanceof TypeError && /fetch failed/i.test(err.message)) {
+      console.error("[extract][network_error]", { failureClass: "network", message: err.message });
       return serverError(
         "AI scanning is temporarily unavailable. You can still enter the voucher details manually and try scanning again later."
       );
     }
     if (err instanceof Error && err.message === "gemini_error") {
+      console.error("[extract][provider_error]", { failureClass: "provider_error", message: err.message });
       return serverError("AI extraction failed — try again");
+    }
+    if (err instanceof SyntaxError) {
+      console.error("[extract][invalid_json]", { failureClass: "invalid_json", message: err.message });
     }
     return serverError("Failed to parse AI response");
   }

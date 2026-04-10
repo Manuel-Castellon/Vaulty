@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:live": "RUN_LIVE_GEMINI_TESTS=1 jest src/functions/ai/__tests__/extract.live.test.js --runInBand",
+    "test:live:stability": "RUN_LIVE_GEMINI_TESTS=1 LIVE_REPEAT=3 jest src/functions/ai/__tests__/extract.live.test.js --runInBand",
     "test:vouchers": "npx ts-node --project tsconfig.json scripts/runVoucherTests.ts"
   },
   "dependencies": {

@@ -98,8 +98,11 @@ export default function AddCouponScreen() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [aiSuggestion, setAiSuggestion] = useState<"coupon" | "voucher" | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
   const [extractWarning, setExtractWarning] = useState<string | null>(null);
   const [manualFallbackHint, setManualFallbackHint] = useState<string | null>(null);
+  const [qrExtractionHint, setQrExtractionHint] = useState<string | null>(null);
+  const [showAdvancedQr, setShowAdvancedQr] = useState(false);
   const [qrImageS3Key, setQrImageS3Key] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
@@ -113,14 +116,22 @@ export default function AddCouponScreen() {
     }
 
     setExtracting(true);
+    setExtractError(null);
     setExtractWarning(null);
     setManualFallbackHint(null);
+    setQrExtractionHint(null);
+    console.info("[add-coupon][extract] started", {
+      source: "image",
+      mimeType,
+      itemType,
+    });
     try {
       const [aiResult, qrResult] = await Promise.allSettled([
         api.ai.extract({ data: asset.base64, mimeType }),
         BarCodeScanner.scanFromURLAsync(asset.uri, [BarCodeScanner.Constants.BarCodeType.qr]),
       ]);
 
+      const hasServerQrImage = aiResult.status === "fulfilled" && !!aiResult.value.qrImageS3Key;
       if (aiResult.status === "fulfilled") {
         const { form: extractedForm, itemType: extractedType } = applyExtraction(aiResult.value.extraction);
         setForm((current) => mergeExtraction(current, extractedForm, EMPTY_FORM));
@@ -140,13 +151,31 @@ export default function AddCouponScreen() {
         if (qrCode) {
           setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
         }
+        const qrDetectionType = qrCode ? "payload" : hasServerQrImage ? "image" : "none";
+        console.info("[add-coupon][extract] completed", {
+          source: "image",
+          qrDetectionType,
+        });
+        setQrExtractionHint(qrCode
+          ? "QR payload detected and added. It will appear on the saved voucher."
+          : hasServerQrImage
+            ? "QR image detected and saved. It will appear on the saved voucher."
+            : "No QR was detected from this image.");
       }
     } catch (err: any) {
       const message = err.message ?? "Extraction failed";
-      if (/temporarily unavailable|manually/i.test(message)) {
-        setManualFallbackHint("Scanning is temporarily unavailable right now. You can still enter the voucher manually below.");
+      console.info("[add-coupon][extract] failed", {
+        source: "image",
+        message,
+      });
+      const isTemporaryUnavailable = /temporarily unavailable|manually/i.test(message);
+      if (isTemporaryUnavailable) {
+        setManualFallbackHint(null);
+        setExtractError(message);
+      } else {
+        setExtractError(message);
+        Alert.alert("Extraction failed", message);
       }
-      Alert.alert("Extraction failed", message);
     } finally {
       setExtracting(false);
     }
@@ -213,8 +242,17 @@ export default function AddCouponScreen() {
         qrCode: form.qrCode || undefined,
         qrImageS3Key: qrImageS3Key || undefined,
       });
+      console.info("[add-coupon][save] success", {
+        itemType,
+        qrPayloadSaved: Boolean(form.qrCode),
+        qrImageSaved: Boolean(qrImageS3Key),
+      });
       router.back();
     } catch (err: any) {
+      console.info("[add-coupon][save] failed", {
+        itemType,
+        message: err.message,
+      });
       Alert.alert("Error", err.message);
     } finally {
       setSaving(false);
@@ -238,6 +276,8 @@ export default function AddCouponScreen() {
           {extracting && <ActivityIndicator color="#007AFF" />}
         </View>
         {extractWarning && <Text style={styles.extractWarning}>{extractWarning}</Text>}
+        {extractError && <Text style={styles.extractError}>{extractError}</Text>}
+        {qrExtractionHint && <Text style={styles.extractHint}>{qrExtractionHint}</Text>}
         {manualFallbackHint && <Text style={styles.extractManualHint}>{manualFallbackHint}</Text>}
       </View>
 
@@ -421,13 +461,22 @@ export default function AddCouponScreen() {
         textAlignVertical="top"
       />
 
-      <Text style={styles.label}>QR Code / Barcode data</Text>
-      <TextInput
-        style={styles.input}
-        value={form.qrCode}
-        onChangeText={(v) => set("qrCode", v)}
-        placeholder="Paste scanned QR data if needed"
-      />
+      <TouchableOpacity style={styles.advancedBtn} onPress={() => setShowAdvancedQr((value) => !value)}>
+        <Text style={styles.advancedBtnText}>
+          {showAdvancedQr ? "Hide advanced scan data" : "Show advanced scan data"}
+        </Text>
+      </TouchableOpacity>
+      {showAdvancedQr && (
+        <>
+          <Text style={styles.label}>QR Code / Barcode data (advanced)</Text>
+          <TextInput
+            style={styles.input}
+            value={form.qrCode}
+            onChangeText={(v) => set("qrCode", v)}
+            placeholder="Paste scanned QR data if needed"
+          />
+        </>
+      )}
 
       <TouchableOpacity
         style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
@@ -456,6 +505,7 @@ const styles = StyleSheet.create({
   },
   extractLabel: { fontSize: 11, fontWeight: "700", color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   extractHint: { fontSize: 13, color: "#667085", marginBottom: 10 },
+  extractError: { fontSize: 13, color: "#b42318", marginTop: 10 },
   extractWarning: { fontSize: 13, color: "#8a5a00", marginTop: 10 },
   extractManualHint: { fontSize: 13, color: "#1d4d2f", marginTop: 10 },
   scanRow: { flexDirection: "row", gap: 10, alignItems: "center" },
@@ -464,6 +514,16 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingVertical: 10, alignItems: "center",
   },
   scanBtnText: { fontSize: 14, fontWeight: "600", color: "#007AFF" },
+  advancedBtn: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#d8dbe2",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  advancedBtnText: { fontSize: 13, fontWeight: "600", color: "#475467" },
 
   typeToggle: {
     flexDirection: "row", backgroundColor: "#e8e8ed", borderRadius: 8, padding: 3, marginBottom: 20,

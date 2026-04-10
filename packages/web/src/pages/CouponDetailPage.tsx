@@ -37,6 +37,7 @@ export default function CouponDetailPage() {
   const [amountInput, setAmountInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [showQrRaw, setShowQrRaw] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -199,7 +200,18 @@ export default function CouponDetailPage() {
                 ? <QRCodeSVG value={coupon.qrCode} size={160} />
                 : <img src={coupon.qrImageUrl} alt="QR code" style={{ width: 160, height: 160, objectFit: "contain" }} />
               }
-              {coupon.qrCode && <span className={styles.qrRaw}>{coupon.qrCode}</span>}
+              {coupon.qrCode && (
+                <>
+                  <button
+                    type="button"
+                    className={styles.updateBtn}
+                    onClick={() => setShowQrRaw((value) => !value)}
+                  >
+                    {showQrRaw ? "Hide raw scan data" : "Show raw scan data"}
+                  </button>
+                  {showQrRaw && <span className={styles.qrRaw}>{coupon.qrCode}</span>}
+                </>
+              )}
             </div>
           </div>
         )}

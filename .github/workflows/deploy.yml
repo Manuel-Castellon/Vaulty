@@ -25,11 +25,20 @@ jobs:
       - name: Typecheck shared
         run: npm run typecheck --workspace=shared
 
+      - name: Test shared
+        run: npm run test --workspace=shared
+
       - name: Typecheck backend
         run: npm run typecheck --workspace=packages/backend
 
+      - name: Test backend extract path
+        run: npm run test --workspace=packages/backend -- src/functions/ai/__tests__/extract.test.js --runInBand
+
       - name: Typecheck web
         run: npm run typecheck --workspace=packages/web
+
+      - name: Test web add extraction flow
+        run: npm run test --workspace=packages/web -- src/pages/__tests__/AddCouponPage.test.tsx
 
       - name: Typecheck mobile
         run: npm run typecheck --workspace=packages/mobile

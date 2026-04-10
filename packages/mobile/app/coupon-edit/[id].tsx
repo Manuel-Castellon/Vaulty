@@ -71,6 +71,7 @@ export default function EditCouponScreen() {
   const [form, setForm] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showAdvancedQr, setShowAdvancedQr] = useState(false);
 
   const set = (field: keyof FormState, value: string) =>
     setForm((f) => f ? { ...f, [field]: value } : f);
@@ -223,8 +224,17 @@ export default function EditCouponScreen() {
       <Text style={styles.label}>Conditions / Restrictions</Text>
       <TextInput style={styles.input} value={form.conditions} onChangeText={(v) => set("conditions", v)} />
 
-      <Text style={styles.label}>QR Code / Barcode data</Text>
-      <TextInput style={styles.input} value={form.qrCode} onChangeText={(v) => set("qrCode", v)} />
+      <TouchableOpacity style={styles.advancedBtn} onPress={() => setShowAdvancedQr((value) => !value)}>
+        <Text style={styles.advancedBtnText}>
+          {showAdvancedQr ? "Hide advanced scan data" : "Show advanced scan data"}
+        </Text>
+      </TouchableOpacity>
+      {showAdvancedQr && (
+        <>
+          <Text style={styles.label}>QR Code / Barcode data (advanced)</Text>
+          <TextInput style={styles.input} value={form.qrCode} onChangeText={(v) => set("qrCode", v)} />
+        </>
+      )}
 
       <Text style={styles.label}>Description</Text>
       <TextInput
@@ -287,6 +297,16 @@ const styles = StyleSheet.create({
   catChipActive: { backgroundColor: "#007AFF", borderColor: "#007AFF" },
   catChipText: { fontSize: 13, fontWeight: "600", color: "#555" },
   catChipTextActive: { color: "#fff" },
+  advancedBtn: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#d8dbe2",
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  advancedBtnText: { fontSize: 13, fontWeight: "600", color: "#475467" },
 
   saveBtn: { marginTop: 32, backgroundColor: "#007AFF", padding: 15, borderRadius: 10, alignItems: "center" },
   saveBtnDisabled: { opacity: 0.6 },
