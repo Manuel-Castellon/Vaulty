@@ -90,7 +90,10 @@ export async function handleAuthCallback(code: string): Promise<void> {
     }),
   });
 
-  if (!res.ok) throw new Error("Token exchange failed");
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Token exchange failed (${res.status})${body ? `: ${body}` : ""}`);
+  }
 
   const { id_token } = await res.json();
   localStorage.setItem("vaulty_id_token", id_token);
