@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Alert } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 
@@ -18,20 +19,47 @@ async function registerForPushNotifications(): Promise<void> {
   if (Platform.OS === "web") return;
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
 
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+  if (existingStatus === "granted") {
+    // Already granted — register token and return
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync();
+      await api.pushTokens.register({ token: tokenData.data });
+    } catch (err) {
+      console.warn("[push] Failed to register push token:", err);
+    }
+    return;
   }
 
-  if (finalStatus !== "granted") return;
+  // Don't re-ask if the user already denied the system dialog
+  const alreadyDenied = await AsyncStorage.getItem("push_permission_denied");
+  if (alreadyDenied === "true") return;
+
+  // Soft ask — show rationale before the system permission dialog
+  const userWantsToEnable = await new Promise<boolean>((resolve) => {
+    Alert.alert(
+      "Enable expiry reminders",
+      "Get notified before your coupons expire so you never miss a deal.",
+      [
+        { text: "Not now", style: "cancel", onPress: () => resolve(false) },
+        { text: "Enable", onPress: () => resolve(true) },
+      ]
+    );
+  });
+
+  if (!userWantsToEnable) return;
+
+  const { status } = await Notifications.requestPermissionsAsync();
+
+  if (status !== "granted") {
+    await AsyncStorage.setItem("push_permission_denied", "true");
+    return;
+  }
 
   try {
     const tokenData = await Notifications.getExpoPushTokenAsync();
     await api.pushTokens.register({ token: tokenData.data });
   } catch (err) {
-    // Non-fatal — notifications just won't work until next launch
     console.warn("[push] Failed to register push token:", err);
   }
 }

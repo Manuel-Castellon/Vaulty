@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { BarCodeScanner } from "expo-barcode-scanner";
@@ -116,6 +117,7 @@ export default function AddCouponScreen() {
   const [saving, setSaving] = useState(false);
   const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [showDatePicker, setShowDatePicker] = useState<"expiresAt" | "eventDate" | null>(null);
 
   useEffect(() => {
     if (!cooldownUntilMs) {
@@ -458,24 +460,64 @@ export default function AddCouponScreen() {
       )}
 
       <Text style={styles.label}>Expiry date</Text>
-      <TextInput
-        style={styles.input}
-        value={form.expiresAt}
-        onChangeText={(v) => set("expiresAt", v)}
-        placeholder="YYYY-MM-DD"
-        keyboardType="numeric"
-      />
+      <View style={styles.dateRow}>
+        <TouchableOpacity
+          style={[styles.input, styles.dateField]}
+          onPress={() => setShowDatePicker("expiresAt")}
+        >
+          <Text style={form.expiresAt ? styles.dateText : styles.datePlaceholder}>
+            {form.expiresAt || "Select date"}
+          </Text>
+        </TouchableOpacity>
+        {form.expiresAt ? (
+          <TouchableOpacity style={styles.dateClear} onPress={() => set("expiresAt", "")}>
+            <Text style={styles.dateClearText}>✕</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {showDatePicker === "expiresAt" && (
+        <DateTimePicker
+          value={form.expiresAt ? new Date(form.expiresAt) : new Date()}
+          mode="date"
+          display="default"
+          onChange={(_event: { type: string }, date?: Date) => {
+            setShowDatePicker(null);
+            if (date) set("expiresAt", date.toISOString().slice(0, 10));
+          }}
+        />
+      )}
 
       {itemType === "voucher" && (
         <>
           <Text style={styles.label}>Event date</Text>
-          <TextInput
-            style={styles.input}
-            value={form.eventDate}
-            onChangeText={(v) => set("eventDate", v)}
-            placeholder="YYYY-MM-DD"
-            keyboardType="numeric"
-          />
+          <View style={styles.dateRow}>
+            <TouchableOpacity
+              style={[styles.input, styles.dateField]}
+              onPress={() => setShowDatePicker("eventDate")}
+            >
+              <Text style={form.eventDate ? styles.dateText : styles.datePlaceholder}>
+                {form.eventDate || "Select date"}
+              </Text>
+            </TouchableOpacity>
+            {form.eventDate ? (
+              <TouchableOpacity style={styles.dateClear} onPress={() => set("eventDate", "")}>
+                <Text style={styles.dateClearText}>✕</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {showDatePicker === "eventDate" && (
+            <DateTimePicker
+              value={form.eventDate ? new Date(form.eventDate) : new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, date) => {
+                setShowDatePicker(null);
+                if (event.type !== "dismissed" && date) {
+                  set("eventDate", date.toISOString().slice(0, 10));
+                }
+              }}
+            />
+          )}
           <Text style={styles.label}>Seat / Location info</Text>
           <TextInput
             style={styles.input}
@@ -626,6 +668,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, alignItems: "center", justifyContent: "center", minWidth: 52,
   },
   toggleBtnText: { fontSize: 15, fontWeight: "600", color: "#333" },
+
+  dateRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dateField: { flex: 1, justifyContent: "center" },
+  dateText: { fontSize: 15, color: "#111" },
+  datePlaceholder: { fontSize: 15, color: "#aaa" },
+  dateClear: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: "#f0f0f0",
+    alignItems: "center", justifyContent: "center",
+  },
+  dateClearText: { fontSize: 13, color: "#666", fontWeight: "600" },
 
   categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   catChip: {

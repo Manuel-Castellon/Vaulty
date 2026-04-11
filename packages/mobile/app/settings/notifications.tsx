@@ -9,7 +9,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from "react-native";
+import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import type { NotificationPreferences } from "@coupon/shared";
 import { api } from "../../services/api";
@@ -19,8 +22,10 @@ export default function NotificationSettingsScreen() {
   const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
 
   useEffect(() => {
+    Notifications.getPermissionsAsync().then(({ status }) => setPermissionStatus(status));
     api.notifications
       .getPreferences()
       .then(setPrefs)
@@ -29,6 +34,12 @@ export default function NotificationSettingsScreen() {
       )
       .finally(() => setLoading(false));
   }, []);
+
+  const handleGrantPermission = async () => {
+    // Clear the denied flag so the soft-ask can fire again next time, then open settings
+    await AsyncStorage.removeItem("push_permission_denied");
+    Linking.openSettings();
+  };
 
   const handleSave = async () => {
     if (!prefs) return;
@@ -54,6 +65,14 @@ export default function NotificationSettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {permissionStatus !== null && permissionStatus !== "granted" && (
+        <TouchableOpacity style={styles.permissionBanner} onPress={handleGrantPermission}>
+          <Text style={styles.permissionBannerTitle}>Notifications are disabled</Text>
+          <Text style={styles.permissionBannerSub}>
+            Tap to open settings and enable notifications so alerts can be delivered.
+          </Text>
+        </TouchableOpacity>
+      )}
       {prefs && (
         <View style={styles.card}>
           {/* Global toggle */}
@@ -173,6 +192,18 @@ const styles = StyleSheet.create({
     borderBottomColor: "#007AFF",
     paddingBottom: 2,
   },
+
+  permissionBanner: {
+    backgroundColor: "#fff8e7",
+    borderWidth: 1,
+    borderColor: "#ffd07a",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    gap: 4,
+  },
+  permissionBannerTitle: { fontSize: 14, fontWeight: "700", color: "#7a4f00" },
+  permissionBannerSub: { fontSize: 13, color: "#8a6200", lineHeight: 18 },
 
   saveBtn: {
     backgroundColor: "#007AFF",

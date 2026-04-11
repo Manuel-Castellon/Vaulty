@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TextInput,
   ScrollView,
+  Modal,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import type { Coupon, CouponStatus } from "@coupon/shared";
@@ -64,6 +65,7 @@ export default function CouponsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Coupon[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [sortPickerVisible, setSortPickerVisible] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchCoupons = useCallback(() => {
@@ -181,22 +183,42 @@ export default function CouponsScreen() {
             ))}
           </View>
 
-          {/* Sort chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScrollView} contentContainerStyle={styles.sortScrollContent}>
+          {/* Sort button */}
+          <View style={styles.sortBar}>
+            <TouchableOpacity style={styles.sortButton} onPress={() => setSortPickerVisible(true)}>
+              <Text style={styles.sortButtonText}>
+                Sort: {SORT_OPTIONS.find((o) => o.key === sortBy)?.label} ▾
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* Sort picker modal */}
+      <Modal
+        visible={sortPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSortPickerVisible(false)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSortPickerVisible(false)}>
+          <View style={styles.sortSheet}>
+            <Text style={styles.sortSheetTitle}>Sort by</Text>
             {SORT_OPTIONS.map(({ key, label }) => (
               <TouchableOpacity
                 key={key}
-                style={[styles.sortChip, sortBy === key && styles.sortChipActive]}
-                onPress={() => setSortBy(key)}
+                style={[styles.sortSheetItem, sortBy === key && styles.sortSheetItemActive]}
+                onPress={() => { setSortBy(key); setSortPickerVisible(false); }}
               >
-                <Text style={[styles.sortChipText, sortBy === key && styles.sortChipTextActive]}>
+                <Text style={[styles.sortSheetItemText, sortBy === key && styles.sortSheetItemTextActive]}>
                   {label}
                 </Text>
+                {sortBy === key && <Text style={styles.sortSheetCheck}>✓</Text>}
               </TouchableOpacity>
             ))}
-          </ScrollView>
-        </>
-      )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <FlatList
         data={filtered}
@@ -310,7 +332,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent",
   },
   tabActive: { borderBottomColor: "#007AFF" },
-  tabText: { fontSize: 14, fontWeight: "600", color: "#999" },
+  tabText: { fontSize: 14, fontWeight: "600", color: "#999", lineHeight: 20 },
   tabTextActive: { color: "#007AFF" },
 
   typeTabBar: {
@@ -321,21 +343,64 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   typeTab: {
-    flex: 1, paddingVertical: 6, alignItems: "center", borderRadius: 6, backgroundColor: "transparent",
+    flex: 1, paddingVertical: 7, alignItems: "center", borderRadius: 6, backgroundColor: "transparent",
   },
   typeTabActive: { backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 2, elevation: 1 },
-  typeTabText: { fontSize: 12, fontWeight: "600", color: "#999" },
+  typeTabText: { fontSize: 12, fontWeight: "600", color: "#999", lineHeight: 18 },
   typeTabTextActive: { color: "#333" },
 
-  sortScrollView: { backgroundColor: "#fafafa", borderBottomWidth: 1, borderBottomColor: "#eee" },
-  sortScrollContent: { paddingHorizontal: 12, paddingVertical: 6, gap: 6, flexDirection: "row" },
-  sortChip: {
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
-    backgroundColor: "#fff", borderWidth: 1, borderColor: "#ddd",
+  sortBar: {
+    backgroundColor: "#fafafa",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
-  sortChipActive: { backgroundColor: "#007AFF", borderColor: "#007AFF" },
-  sortChipText: { fontSize: 12, fontWeight: "600", color: "#555" },
-  sortChipTextActive: { color: "#fff" },
+  sortButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  sortButtonText: { fontSize: 13, fontWeight: "600", color: "#333", lineHeight: 18 },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  sortSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 32,
+    paddingTop: 8,
+  },
+  sortSheetTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#999",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  sortSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  sortSheetItemActive: { backgroundColor: "#f0f4ff" },
+  sortSheetItemText: { fontSize: 16, color: "#333" },
+  sortSheetItemTextActive: { fontWeight: "700", color: "#007AFF" },
+  sortSheetCheck: { fontSize: 16, color: "#007AFF", fontWeight: "700" },
 
   item: { padding: 16, borderBottomWidth: 1, borderBottomColor: "#eee" },
   itemDimmed: { opacity: 0.55 },

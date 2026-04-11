@@ -220,38 +220,35 @@ export default function CouponDetailScreen() {
         </View>
       )}
 
-      {/* Lifecycle actions */}
-      <View style={styles.lifecycleRow}>
+      {/* Actions — 2×2 compact grid */}
+      <View style={styles.actionsGrid}>
         <TouchableOpacity
-          style={[styles.lifecycleBtn, styles.lifecycleBtnUsed, status === "used" && styles.lifecycleBtnUsedActive]}
+          style={[styles.actionBtn, styles.actionBtnUsed, status === "used" && styles.actionBtnUsedActive]}
           onPress={() => handleStatusUpdate(status === "used" ? "active" : "used")}
           disabled={statusUpdating}
         >
-          <Text style={[styles.lifecycleBtnText, styles.lifecycleBtnUsedText]}>
+          <Text style={[styles.actionBtnText, styles.actionBtnUsedText]}>
             {status === "used" ? "✓ Used" : "Mark Used"}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.lifecycleBtn, styles.lifecycleBtnArchived, status === "archived" && styles.lifecycleBtnArchivedActive]}
+          style={[styles.actionBtn, styles.actionBtnEdit]}
+          onPress={() => router.push(`/coupon-edit/${id}`)}
+          disabled={statusUpdating}
+        >
+          <Text style={[styles.actionBtnText, styles.actionBtnEditText]}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.actionBtnArchived, status === "archived" && styles.actionBtnArchivedActive]}
           onPress={() => handleStatusUpdate(status === "archived" ? "active" : "archived")}
           disabled={statusUpdating}
         >
-          <Text style={[styles.lifecycleBtnText, styles.lifecycleBtnArchivedText]}>
+          <Text style={[styles.actionBtnText, styles.actionBtnArchivedText]}>
             {status === "archived" ? "✓ Archived" : "Archive"}
           </Text>
         </TouchableOpacity>
-      </View>
-
-      {/* Edit + Delete */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.btn, styles.editBtn]}
-          onPress={() => router.push(`/coupon-edit/${id}`)}
-        >
-          <Text style={styles.btnText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.deleteBtn]} onPress={handleDelete}>
-          <Text style={styles.btnText}>Delete</Text>
+        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDelete]} onPress={handleDelete}>
+          <Text style={[styles.actionBtnText, styles.actionBtnDeleteText]}>Delete</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -326,24 +323,27 @@ const styles = StyleSheet.create({
   rawToggleBtnText: { fontSize: 12, fontWeight: "600", color: "#475467" },
   qrRaw: { fontSize: 11, color: "#aaa", fontFamily: "monospace", textAlign: "center" },
 
-  // Lifecycle buttons
-  lifecycleRow: { flexDirection: "row", gap: 10, marginTop: 20 },
-  lifecycleBtn: {
-    flex: 1, padding: 12, borderRadius: 8, alignItems: "center",
-    borderWidth: 1,
+  // Compact 2×2 action grid
+  actionsGrid: {
+    flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 20,
   },
-  lifecycleBtnUsed: { backgroundColor: "#fff8e7", borderColor: "#ffd07a" },
-  lifecycleBtnUsedActive: { backgroundColor: "#ffd07a" },
-  lifecycleBtnArchived: { backgroundColor: "#f5f5f5", borderColor: "#ddd" },
-  lifecycleBtnArchivedActive: { backgroundColor: "#ddd" },
-  lifecycleBtnText: { fontWeight: "600", fontSize: 14 },
-  lifecycleBtnUsedText: { color: "#c07000" },
-  lifecycleBtnArchivedText: { color: "#666" },
+  actionBtn: {
+    width: "48%", paddingVertical: 10, borderRadius: 8,
+    alignItems: "center", borderWidth: 1,
+  },
+  actionBtnText: { fontWeight: "600", fontSize: 13 },
+  actionBtnUsed: { backgroundColor: "#fff8e7", borderColor: "#ffd07a" },
+  actionBtnUsedActive: { backgroundColor: "#ffd07a" },
+  actionBtnUsedText: { color: "#c07000" },
+  actionBtnEdit: { backgroundColor: "#007AFF", borderColor: "#007AFF" },
+  actionBtnEditText: { color: "#fff" },
+  actionBtnArchived: { backgroundColor: "#f5f5f5", borderColor: "#ddd" },
+  actionBtnArchivedActive: { backgroundColor: "#ddd" },
+  actionBtnArchivedText: { color: "#666" },
+  actionBtnDelete: { backgroundColor: "#fff0f0", borderColor: "#ffb3ae" },
+  actionBtnDeleteText: { color: "#FF3B30" },
 
-  actionRow: { flexDirection: "row", gap: 10, marginTop: 10 },
   btn: { flex: 1, padding: 14, borderRadius: 8, alignItems: "center" },
   saveBtn: { backgroundColor: "#007AFF", marginTop: 0 },
-  editBtn: { backgroundColor: "#007AFF" },
-  deleteBtn: { backgroundColor: "#FF3B30" },
   btnText: { color: "#fff", fontWeight: "600", fontSize: 15 },
 });
