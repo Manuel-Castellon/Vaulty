@@ -18,12 +18,13 @@ export default function AuthCallbackPage() {
 
     if (oauthError) {
       const desc = oauthErrorDescription ?? "";
-      // Cognito returns this when the user already has an email/password account
-      // and tries to sign in with Google using the same email.
+      // Cognito returns invalid_request when the user already has an email/password
+      // account and tries to sign in with Google using the same email.
+      // Also catch description variants with "already_exists" / "already exists".
       const isEmailConflict =
+        oauthError === "invalid_request" ||
         desc.includes("already_exists") ||
-        desc.includes("already exists") ||
-        oauthError === "invalid_request" && desc.toLowerCase().includes("email");
+        desc.includes("already exists");
       const message = isEmailConflict
         ? "An account with this email already exists. Sign in with your password instead."
         : `Sign-in failed: ${oauthError}${desc ? ` — ${desc}` : ""}`;
