@@ -389,3 +389,45 @@
 .deleteBtn:hover {
   background: #fff0f0;
 }
+
+.deleteConfirmRow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff8f7;
+  border: 1px solid #ffb3ae;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.deleteConfirmText {
+  flex: 1;
+  font-size: 13px;
+  color: #cc1a10;
+  font-weight: 600;
+}
+
+.deleteConfirmBtn {
+  background: #ff3b30;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.deleteCancelBtn {
+  background: none;
+  border: 1px solid #ddd;
+  color: #555;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}

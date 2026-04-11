@@ -73,3 +73,12 @@ export interface ExtractRequest {
   /** S3 key if the file was already uploaded via presigned URL */
   s3Key?: string;
 }
+
+export interface NotificationPreferences {
+  /** Whether expiry push notifications are enabled globally for this user */
+  enabled: boolean;
+  /** How many days before expiry to send the notification (1–30) */
+  daysBeforeExpiry: number;
+}
+
+export type UpdateNotificationPreferencesRequest = Partial<NotificationPreferences>;

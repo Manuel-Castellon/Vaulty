@@ -2,8 +2,10 @@ import { ScheduledHandler } from "aws-lambda";
 import { ScanCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "../../lib/dynamodb";
 import type { Coupon } from "@coupon/shared";
+import { getPrefs } from "./preferences";
 
-const DAYS_BEFORE_EXPIRY = parseInt(process.env.EXPIRY_DAYS_THRESHOLD ?? "3", 10);
+// Fallback threshold from env — used only when user has no stored preferences
+const DEFAULT_DAYS_BEFORE_EXPIRY = parseInt(process.env.EXPIRY_DAYS_THRESHOLD ?? "3", 10);
 
 interface ExpoPushMessage {
   to: string;
@@ -52,15 +54,16 @@ async function getPushToken(userId: string): Promise<string | null> {
 
 export const handler: ScheduledHandler = async () => {
   const now = new Date();
-  const thresholdDate = new Date(now);
-  thresholdDate.setDate(thresholdDate.getDate() + DAYS_BEFORE_EXPIRY);
+  // Use the widest possible window for the scan (30 days) and filter per-user below
+  const maxThresholdDate = new Date(now);
+  maxThresholdDate.setDate(maxThresholdDate.getDate() + 30);
 
   const nowIso = now.toISOString();
-  const thresholdIso = thresholdDate.toISOString();
+  const maxThresholdIso = maxThresholdDate.toISOString();
 
-  console.log(`[expiry-check] Scanning for coupons expiring between ${nowIso} and ${thresholdIso}`);
+  console.log(`[expiry-check] Scanning for coupons expiring between ${nowIso} and ${maxThresholdIso}`);
 
-  // Scan for all expiring coupons, group by userId
+  // Scan for all expiring coupons within the max window, group by userId
   const expiringByUser = new Map<string, Coupon[]>();
   let lastEvaluatedKey: Record<string, unknown> | undefined;
 
@@ -69,11 +72,12 @@ export const handler: ScheduledHandler = async () => {
       new ScanCommand({
         TableName: TABLE_NAME,
         FilterExpression:
-          "attribute_exists(expiresAt) AND expiresAt > :now AND expiresAt <= :threshold AND id <> :pushToken",
+          "attribute_exists(expiresAt) AND expiresAt > :now AND expiresAt <= :threshold AND id <> :pushToken AND id <> :prefs",
         ExpressionAttributeValues: {
           ":now": nowIso,
-          ":threshold": thresholdIso,
+          ":threshold": maxThresholdIso,
           ":pushToken": "PUSH_TOKEN",
+          ":prefs": "NOTIFICATION_PREFS",
         },
         ExclusiveStartKey: lastEvaluatedKey as any,
       })
@@ -88,12 +92,26 @@ export const handler: ScheduledHandler = async () => {
     lastEvaluatedKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
   } while (lastEvaluatedKey);
 
-  console.log(`[expiry-check] Found ${expiringByUser.size} users with expiring items`);
+  console.log(`[expiry-check] Found ${expiringByUser.size} users with items expiring within 30 days`);
 
   // Build push messages
   const messages: ExpoPushMessage[] = [];
 
-  for (const [userId, coupons] of expiringByUser) {
+  for (const [userId, allCoupons] of expiringByUser) {
+    // Fetch per-user notification preferences
+    const prefs = await getPrefs(userId);
+    if (!prefs.enabled) {
+      console.log(`[expiry-check] Notifications disabled for userId=${userId}, skipping`);
+      continue;
+    }
+
+    // Filter to only coupons within this user's configured threshold
+    const thresholdDate = new Date(now);
+    thresholdDate.setDate(thresholdDate.getDate() + prefs.daysBeforeExpiry);
+    const thresholdIso = thresholdDate.toISOString();
+    const coupons = allCoupons.filter((c) => c.expiresAt! <= thresholdIso);
+    if (coupons.length === 0) continue;
+
     const pushToken = await getPushToken(userId);
     if (!pushToken) {
       console.log(`[expiry-check] No push token for userId=${userId}, skipping`);
@@ -122,7 +140,7 @@ export const handler: ScheduledHandler = async () => {
       body =
         daysLeft === 0
           ? `You have ${coupons.length} coupons or vouchers expiring today!`
-          : `You have ${coupons.length} coupons or vouchers expiring within ${DAYS_BEFORE_EXPIRY} days`;
+          : `You have ${coupons.length} coupons or vouchers expiring within ${prefs.daysBeforeExpiry} day${prefs.daysBeforeExpiry !== 1 ? "s" : ""}`;
     }
 
     messages.push({ to: pushToken, title, body, data });

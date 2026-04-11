@@ -51,6 +51,7 @@ const STATUS_ORDER: Record<CouponStatus, number> = { active: 0, used: 1, archive
 export default function CouponsPage() {
   const { coupons, loading, error, deleteCoupon } = useCoupons();
   const [searchParams] = useSearchParams();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Coupon[] | null>(null);
@@ -277,14 +278,30 @@ export default function CouponsPage() {
                   </div>
                 </Link>
                 <div className={styles.cardFooter}>
-                  <button
-                    className={styles.deleteBtn}
-                    onClick={() => {
-                      if (window.confirm(`Delete "${coupon.title}"?`)) deleteCoupon(coupon.id);
-                    }}
-                  >
-                    Delete
-                  </button>
+                  {confirmDeleteId === coupon.id ? (
+                    <>
+                      <span className={styles.deleteConfirmText}>Delete?</span>
+                      <button
+                        className={styles.deleteConfirmBtn}
+                        onClick={() => { deleteCoupon(coupon.id); setConfirmDeleteId(null); }}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        className={styles.deleteCancelBtn}
+                        onClick={() => setConfirmDeleteId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className={styles.deleteBtn}
+                      onClick={() => setConfirmDeleteId(coupon.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </li>
             );

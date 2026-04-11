@@ -378,6 +378,35 @@
   text-decoration: underline;
 }
 
+.deleteConfirmText {
+  font-size: 12px;
+  color: #333;
+  margin-right: 6px;
+}
+
+.deleteConfirmBtn {
+  background: #ff3b30;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.deleteCancelBtn {
+  background: none;
+  border: 1px solid #ddd;
+  color: #555;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 @media (max-width: 600px) {
   .grid {
     grid-template-columns: 1fr;

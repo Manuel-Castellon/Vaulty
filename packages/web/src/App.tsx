@@ -9,6 +9,9 @@ import LoginPage from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
 import ConfirmPage from "./pages/ConfirmPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import NotificationSettingsPage from "./pages/NotificationSettingsPage";
 import styles from "./app.module.css";
 
 export default function App() {
@@ -37,6 +40,14 @@ export default function App() {
             >
               + Add
             </NavLink>
+            <NavLink
+              to="/settings/notifications"
+              className={({ isActive }) =>
+                `${styles.navLink}${isActive ? ` ${styles.navLinkActive}` : ""}`
+              }
+            >
+              Notifications
+            </NavLink>
           </div>
           <button className={styles.signOutBtn} onClick={signOut}>
             Sign out
@@ -50,8 +61,11 @@ export default function App() {
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/confirm" element={<ConfirmPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Protected routes */}
+          <Route path="/settings/notifications" element={<RequireAuth><NotificationSettingsPage /></RequireAuth>} />
           <Route path="/" element={<RequireAuth><CouponsPage /></RequireAuth>} />
           <Route path="/coupons/:id" element={<RequireAuth><CouponDetailPage /></RequireAuth>} />
           <Route path="/coupons/:id/edit" element={<RequireAuth><EditCouponPage /></RequireAuth>} />

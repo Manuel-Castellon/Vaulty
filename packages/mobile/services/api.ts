@@ -7,6 +7,8 @@ import type {
   ExtractRequest,
   SearchRequest,
   RegisterTokenRequest,
+  NotificationPreferences,
+  UpdateNotificationPreferencesRequest,
 } from "@coupon/shared";
 import { normalizeExtractResponse } from "@coupon/shared";
 
@@ -71,5 +73,14 @@ export const api = {
       }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/coupons/${id}`, { method: "DELETE" }),
+  },
+  notifications: {
+    getPreferences: () =>
+      request<NotificationPreferences>("/notifications/preferences"),
+    updatePreferences: (prefs: UpdateNotificationPreferencesRequest) =>
+      request<NotificationPreferences>("/notifications/preferences", {
+        method: "PUT",
+        body: JSON.stringify(prefs),
+      }),
   },
 };

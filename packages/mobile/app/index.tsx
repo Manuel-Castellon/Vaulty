@@ -199,6 +199,20 @@ export default function CouponsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
+        ListEmptyComponent={
+          coupons.length === 0 && !isSearchMode ? (
+            <View style={styles.emptyVault}>
+              <Text style={styles.emptyVaultTitle}>Your vault is empty</Text>
+              <Text style={styles.emptyVaultSub}>
+                Tap + to add your first coupon or voucher.
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.empty}>
+              {isSearchMode ? "No matches found." : "No items match your filters."}
+            </Text>
+          )
+        }
         renderItem={({ item }) => {
           const status = effectiveStatus(item);
           const isDimmed = status !== "active";
@@ -249,11 +263,6 @@ export default function CouponsScreen() {
             </TouchableOpacity>
           );
         }}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {isSearchMode ? "No matches found." : "No items match your filters."}
-          </Text>
-        }
       />
       <TouchableOpacity
         style={styles.fab}
@@ -357,6 +366,9 @@ const styles = StyleSheet.create({
   expiryExpired: { color: "#FF3B30" },
 
   empty: { textAlign: "center", marginTop: 40, color: "#999" },
+  emptyVault: { alignItems: "center", paddingTop: 80, paddingHorizontal: 32 },
+  emptyVaultTitle: { fontSize: 20, fontWeight: "700", color: "#333", marginBottom: 8, textAlign: "center" },
+  emptyVaultSub: { fontSize: 14, color: "#999", textAlign: "center", lineHeight: 20 },
   fab: {
     position: "absolute", bottom: 24, right: 24,
     backgroundColor: "#007AFF", width: 56, height: 56, borderRadius: 28,

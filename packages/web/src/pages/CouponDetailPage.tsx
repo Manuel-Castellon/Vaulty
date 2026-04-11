@@ -38,6 +38,7 @@ export default function CouponDetailPage() {
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [showQrRaw, setShowQrRaw] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -51,7 +52,7 @@ export default function CouponDetailPage() {
   }, [id]);
 
   const handleDelete = async () => {
-    if (!id || !window.confirm("Permanently delete this item? This cannot be undone.")) return;
+    if (!id) return;
     await api.coupons.delete(id);
     navigate("/");
   };
@@ -284,9 +285,17 @@ export default function CouponDetailPage() {
         <Link to={`/coupons/${id}/edit`} className={styles.editBtn}>
           Edit
         </Link>
-        <button className={styles.deleteBtn} onClick={handleDelete}>
-          Delete
-        </button>
+        {confirmDelete ? (
+          <div className={styles.deleteConfirmRow}>
+            <span className={styles.deleteConfirmText}>Permanently delete this item?</span>
+            <button className={styles.deleteConfirmBtn} onClick={handleDelete}>Yes, delete</button>
+            <button className={styles.deleteCancelBtn} onClick={() => setConfirmDelete(false)}>Cancel</button>
+          </div>
+        ) : (
+          <button className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );

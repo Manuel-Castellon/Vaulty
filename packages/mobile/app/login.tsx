@@ -100,6 +100,11 @@ export default function LoginScreen() {
           <Text style={styles.link}>Sign up</Text>
         </TouchableOpacity>
       </View>
+      <View style={[styles.footer, { marginTop: 4 }]}>
+        <TouchableOpacity onPress={() => router.push("/forgot-password")}>
+          <Text style={styles.link}>Forgot password?</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }

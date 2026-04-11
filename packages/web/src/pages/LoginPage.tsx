@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { signIn, getGoogleSignInUrl } from "../services/auth";
 import { useAuth } from "../context/AuthContext";
 import styles from "./auth.module.css";
@@ -7,6 +7,8 @@ import styles from "./auth.module.css";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { signOut } = useAuth(); // access context to force re-check after login
+  const [searchParams] = useSearchParams();
+  const resetSuccess = searchParams.get("reset") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +37,7 @@ export default function LoginPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <h1 className={styles.title}>Sign in to Vaulty</h1>
+        {resetSuccess && <p className={styles.info}>Password reset — sign in with your new password.</p>}
         {error && <p className={styles.error}>{error}</p>}
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.label}>
@@ -61,6 +64,11 @@ export default function LoginPage() {
           <button className={styles.btn} type="submit" disabled={loading}>
             {loading ? "Signing in…" : "Sign in"}
           </button>
+          <p style={{ textAlign: "right", margin: "4px 0 0" }}>
+            <Link to="/forgot-password" className={styles.link} style={{ fontSize: 13 }}>
+              Forgot password?
+            </Link>
+          </p>
         </form>
         <div className={styles.divider}><span>or</span></div>
 

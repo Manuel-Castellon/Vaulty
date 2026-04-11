@@ -285,6 +285,27 @@ Resources:
             Path: /push-token
             Method: POST
 
+  NotificationPreferencesFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: preferences.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        GetPrefs:
+          Type: Api
+          Properties:
+            Path: /notifications/preferences
+            Method: GET
+        PutPrefs:
+          Type: Api
+          Properties:
+            Path: /notifications/preferences
+            Method: PUT
+
   ExpiryCheckFunction:
     Type: AWS::Serverless::Function
     Metadata:

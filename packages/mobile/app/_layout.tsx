@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, StyleProp, ViewStyle } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as Notifications from "expo-notifications";
 import { getIdToken, signOut } from "../services/auth";
@@ -69,6 +69,8 @@ export default function RootLayout() {
       segments[0] === "login" ||
       segments[0] === "signup" ||
       segments[0] === "confirm" ||
+      segments[0] === "forgot-password" ||
+      segments[0] === "reset-password" ||
       (segments[0] === "auth" && segments[1] === "callback");
 
     if (!isAuthenticated && !inAuthGroup) {
@@ -98,9 +100,14 @@ export default function RootLayout() {
       <Stack.Screen name="index" options={{
         title: "My Coupons",
         headerRight: () => (
-          <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity onPress={() => router.push("/settings/notifications")} style={styles.headerBtn}>
+              <Text style={styles.headerBtnText}>Alerts</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
         ),
       }} />
       <Stack.Screen name="add" options={{ title: "Add Coupon" }} />
@@ -110,6 +117,9 @@ export default function RootLayout() {
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="confirm" options={{ title: "Confirm Email" }} />
       <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+      <Stack.Screen name="forgot-password" options={{ title: "Reset Password" }} />
+      <Stack.Screen name="reset-password" options={{ title: "Set New Password" }} />
+      <Stack.Screen name="settings/notifications" options={{ title: "Notification Settings" }} />
     </Stack>
   );
 }
@@ -125,6 +135,15 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 15,
     color: "#666",
+  },
+  headerBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  headerBtnText: {
+    fontSize: 15,
+    color: "#007AFF",
+    fontWeight: "600",
   },
   signOutBtn: {
     marginRight: 4,
