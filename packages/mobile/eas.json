@@ -8,11 +8,23 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://l0tpj3eji8.execute-api.us-east-1.amazonaws.com/Prod",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "us-east-1_Ijluog7Z8",
+        "EXPO_PUBLIC_COGNITO_CLIENT_ID": "7i6d3i32b2ho56ts0fpt0fmcpq",
+        "EXPO_PUBLIC_COGNITO_DOMAIN": "vaulty-dev-829808296740.auth.us-east-1.amazoncognito.com"
       }
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://l0tpj3eji8.execute-api.us-east-1.amazonaws.com/Prod",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "us-east-1_Ijluog7Z8",
+        "EXPO_PUBLIC_COGNITO_CLIENT_ID": "7i6d3i32b2ho56ts0fpt0fmcpq",
+        "EXPO_PUBLIC_COGNITO_DOMAIN": "vaulty-dev-829808296740.auth.us-east-1.amazoncognito.com"
       }
     }
   }
