@@ -88,6 +88,16 @@ describe("AuthCallbackPage", () => {
     expect(mockHandleAuthCallback).not.toHaveBeenCalled();
   });
 
+  it("shows helpful message for email-conflict OAuth error", async () => {
+    setSearch("?error=invalid_request&error_description=Already+found+an+entry+for+username+already_exists");
+    render(<AuthCallbackPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/account with this email already exists/i)).toBeInTheDocument();
+      expect(screen.getByText(/sign in with your password instead/i)).toBeInTheDocument();
+    });
+    expect(mockHandleAuthCallback).not.toHaveBeenCalled();
+  });
+
   it("does not call handleAuthCallback twice (StrictMode guard)", async () => {
     setSearch("?code=abc123");
     mockHandleAuthCallback.mockResolvedValue(undefined);

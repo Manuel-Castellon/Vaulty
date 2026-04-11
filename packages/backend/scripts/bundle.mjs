@@ -13,14 +13,15 @@ const functions = [
   { name: "DeleteCouponFunction",  entry: "src/functions/coupons/delete.ts",       out: "delete.js" },
   { name: "GetUploadUrlFunction",  entry: "src/functions/upload/presigned-url.ts", out: "presigned-url.js" },
   { name: "ExpiryCheckFunction",    entry: "src/functions/notifications/expiry-check.ts",    out: "expiry-check.js" },
-  { name: "RegisterTokenFunction",  entry: "src/functions/notifications/register-token.ts",  out: "register-token.js" },
+  { name: "RegisterTokenFunction",         entry: "src/functions/notifications/register-token.ts",  out: "register-token.js" },
+  { name: "NotificationPreferencesFunction", entry: "src/functions/notifications/preferences.ts",      out: "preferences.js" },
   { name: "ExtractFunction",      entry: "src/functions/ai/extract.ts",               out: "extract.js" },
   { name: "SearchFunction",       entry: "src/functions/ai/search.ts",                out: "search.js" },
 ];
 
 // Functions that use jimp/jsqr need those packages bundled (they are NOT
 // available in the Lambda runtime). All @aws-sdk/* clients remain external
-// because the Lambda Node.js 20 runtime ships the full AWS SDK v3.
+// because the Lambda Node.js 24 runtime ships the full AWS SDK v3.
 const NEEDS_IMAGE_DEPS = new Set(["ExtractFunction"]);
 
 for (const fn of functions) {

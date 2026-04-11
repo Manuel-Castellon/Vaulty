@@ -219,7 +219,7 @@ describe("AddCouponPage", () => {
       expect(screen.getByLabelText("Title")).toHaveValue("Dominos PDF Voucher");
     });
     expect(screen.getByLabelText(/store \/ vendor/i)).toHaveValue("דומינוס");
-    expect(screen.getByText(/pdf qr decoding is skipped for mvp/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/pdfs: qr scanning is limited/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /switch to voucher/i })).toBeInTheDocument();
   });
 

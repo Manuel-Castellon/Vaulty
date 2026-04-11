@@ -17,7 +17,17 @@ export default function AuthCallbackPage() {
     const oauthErrorDescription = params.get("error_description");
 
     if (oauthError) {
-      setError(`OAuth error: ${oauthError}${oauthErrorDescription ? ` — ${oauthErrorDescription}` : ""}`);
+      const desc = oauthErrorDescription ?? "";
+      // Cognito returns this when the user already has an email/password account
+      // and tries to sign in with Google using the same email.
+      const isEmailConflict =
+        desc.includes("already_exists") ||
+        desc.includes("already exists") ||
+        oauthError === "invalid_request" && desc.toLowerCase().includes("email");
+      const message = isEmailConflict
+        ? "An account with this email already exists. Sign in with your password instead."
+        : `Sign-in failed: ${oauthError}${desc ? ` — ${desc}` : ""}`;
+      setError(message);
       return;
     }
 

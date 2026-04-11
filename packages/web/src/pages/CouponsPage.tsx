@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useCoupons } from "../hooks/useCoupons";
 import type { Coupon, CouponCategory, CouponStatus } from "@coupon/shared";
 import { api } from "../services/api";
+import { formatDate } from "../utils/date";
 import styles from "./coupons.module.css";
 
 const CATEGORIES: CouponCategory[] = [
@@ -28,10 +29,10 @@ function daysUntilExpiry(expiresAt: string): number {
 function expiryLabel(expiresAt: string | undefined): { text: string; warn: boolean; expired: boolean } {
   if (!expiresAt) return { text: "No expiry", warn: false, expired: false };
   const days = daysUntilExpiry(expiresAt);
-  if (days < 0) return { text: `Expired ${new Date(expiresAt).toLocaleDateString()}`, warn: false, expired: true };
+  if (days < 0) return { text: `Expired ${formatDate(expiresAt)}`, warn: false, expired: true };
   if (days === 0) return { text: "Expires today!", warn: true, expired: false };
   if (days <= 7) return { text: `Expires in ${days} day${days !== 1 ? "s" : ""}`, warn: true, expired: false };
-  return { text: `Expires ${new Date(expiresAt).toLocaleDateString()}`, warn: false, expired: false };
+  return { text: `Expires ${formatDate(expiresAt)}`, warn: false, expired: false };
 }
 
 // Derives the effective display status, giving manual status priority over date-expiry
@@ -251,7 +252,7 @@ export default function CouponsPage() {
               >
                 <Link to={`/coupons/${coupon.id}`} className={styles.cardLink}>
                   <div className={styles.cardTop}>
-                    <h2 className={styles.cardTitle}>{coupon.title}</h2>
+                    <h2 className={styles.cardTitle} dir="auto">{coupon.title}</h2>
                     <div className={styles.badgeRow}>
                       {/* Type / category badge — always shown */}
                       <span className={`${styles.badge}${isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
@@ -269,7 +270,7 @@ export default function CouponsPage() {
                       )}
                     </div>
                   </div>
-                  <p className={styles.cardStore}>{coupon.store}</p>
+                  <p className={styles.cardStore} dir="auto">{coupon.store}</p>
                   {value && <p className={styles.discount}>{value}</p>}
                   <div className={styles.cardMeta}>
                     <span className={isExpired ? styles.expiryExpired : expiry.warn ? styles.expiryWarn : styles.expiry}>

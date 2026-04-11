@@ -23,7 +23,7 @@ Package names: `@coupon/backend`, `@coupon/mobile`, `@coupon/web`, `@coupon/shar
 |---|---|
 | Mobile | React Native 0.74, Expo 51, expo-router |
 | Web | React 18, Vite, react-router-dom |
-| Backend | AWS Lambda (Node 18), API Gateway, AWS SAM |
+| Backend | AWS Lambda (Node 24), API Gateway, AWS SAM |
 | Database | DynamoDB — table `coupons-{stage}`, PK: `userId`, SK: `id` |
 | Auth | AWS Cognito (email/password + Google SSO) |
 | File Storage | AWS S3 (coupon images + QR crops) |
@@ -121,11 +121,9 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - AWS infrastructure deployed end-to-end
 
 **Remaining:**
-- EAS / Android cloud build (needs EXPO_TOKEN + EAS account setup)
-- Password reset flow (web + mobile)
-- Notification preferences (global/per-coupon enable/disable)
-- UI polish pass
+- EAS / Android cloud build (EXPO_TOKEN needs to be configured in GitHub secrets)
 - Web push notifications (post-MVP)
+- Multi-store gift card type (post-MVP)
 
 ## Current Handoff (2026-04-09)
 
@@ -149,6 +147,33 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
   - EAS build profiles exist in `packages/mobile/eas.json`.
   - GitHub mobile workflow includes gated EAS Android preview build when `EXPO_TOKEN` is configured.
   - Final step pending: confirm installable APK from current queued Expo build and complete smoke verification.
+
+## Cross-Platform Conventions
+
+When fixing a bug or adding a feature on one platform (web or mobile), always:
+1. Check if the same issue exists on the other platform and fix it there too
+2. Add tests that cover the cross-platform behavior in the shared module or both platform modules
+3. If a feature can't be translated (e.g., native push vs. browser push), explicitly note why and what the equivalent behavior is (or isn't)
+4. Auth flows, API calls, and data display must behave consistently across platforms
+
+**Shared utilities:**
+- `packages/web/src/utils/date.ts` — `formatDate(iso)` → "10 Aug 2026" (use instead of `toLocaleDateString()`)
+- `packages/mobile/utils/date.ts` — same as above for mobile
+- `packages/mobile/utils/bidi.ts` — `isRTL(text)` for detecting Hebrew/Arabic text direction
+
+## Known AI Limitations (Post-MVP Backlog)
+
+### Store context problem (קומבינה-style)
+AI cannot resolve brand→store relationships without internet search or a knowledge base (e.g., קומבינה coupon that's actually valid at בורגראנץ). Options for post-MVP:
+1. Online search tool integration (must remain free-tier)
+2. User-editable store field with autocomplete from past entries
+3. Store alias / correction feedback mechanism
+
+### Multi-store gift card (BuyMe, Bit, etc.)
+Current `itemType: "coupon" | "voucher"` does not cleanly model multi-store gift cards. Post-MVP: add `itemType: "giftcard"` with fields `cardNumber`, `pin`, `balance`, `acceptedAt?: string[]`. Do NOT repurpose `code` for card numbers.
+
+### Web/browser push notifications
+Web push requires Web Push API + service workers + VAPID keys — significant complexity. Post-MVP. Mobile push is fully implemented.
 
 ## Conventions
 

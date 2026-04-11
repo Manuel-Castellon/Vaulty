@@ -11,9 +11,11 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { signIn, getGoogleSignInUrl } from "../services/auth";
+import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { refreshAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,6 +28,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signIn(email, password);
+      await refreshAuth();
       router.replace("/");
     } catch (err: any) {
       if (err.code === "UserNotConfirmedException") {

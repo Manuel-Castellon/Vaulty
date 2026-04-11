@@ -203,7 +203,7 @@ export default function AddCouponPage() {
 
       const isImage = file.type.startsWith("image/");
       if (!isImage) {
-        setExtractHint("QR extraction works best from photos or screenshots. PDF QR decoding is skipped for MVP.");
+        setExtractHint("Upload a photo or screenshot for best QR extraction. PDFs: QR scanning is limited.");
       }
 
       const [aiResult, qrResult] = await Promise.allSettled([
@@ -385,7 +385,7 @@ export default function AddCouponPage() {
       {/* AI extraction */}
       <div className={styles.extractCard}>
         <p className={styles.extractHeading}>Scan or paste to auto-fill</p>
-        <p className={styles.extractHint}>For QR extraction, images and screenshots work best. PDF QR decoding is skipped for now.</p>
+        <p className={styles.extractHint}>Upload a photo or screenshot for best QR extraction. PDFs: QR scanning is limited.</p>
         <div className={styles.extractActions}>
           <input
             ref={fileInputRef}

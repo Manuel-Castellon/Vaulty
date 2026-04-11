@@ -12,6 +12,8 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import type { Coupon, CouponStatus } from "@coupon/shared";
 import { api } from "../services/api";
+import { formatDate } from "../utils/date";
+import { isRTL } from "../utils/bidi";
 
 type StatusFilter = "all" | "active" | "used" | "archived" | "expired";
 type ItemTypeTab = "all" | "coupon" | "voucher";
@@ -24,10 +26,10 @@ function daysUntilExpiry(expiresAt: string): number {
 function expiryLabel(coupon: Coupon): string {
   if (!coupon.expiresAt) return "No expiry";
   const days = daysUntilExpiry(coupon.expiresAt);
-  if (days < 0) return `Expired ${new Date(coupon.expiresAt).toLocaleDateString()}`;
+  if (days < 0) return `Expired ${formatDate(coupon.expiresAt)}`;
   if (days === 0) return "Expires today!";
   if (days <= 7) return `Expires in ${days} day${days !== 1 ? "s" : ""}`;
-  return `Expires ${new Date(coupon.expiresAt).toLocaleDateString()}`;
+  return `Expires ${formatDate(coupon.expiresAt)}`;
 }
 
 function effectiveStatus(coupon: Coupon): CouponStatus {
@@ -227,7 +229,7 @@ export default function CouponsScreen() {
               onPress={() => router.push(`/coupon/${item.id}`)}
             >
               <View style={styles.itemHeader}>
-                <Text style={[styles.title, isDimmed && styles.textDimmed]}>{item.title}</Text>
+                <Text style={[styles.title, isDimmed && styles.textDimmed, isRTL(item.title) && styles.rtl]}>{item.title}</Text>
                 <View style={styles.badgeRow}>
                   {/* Type/category badge */}
                   <View style={[styles.badge, isVoucher && styles.badgeVoucher]}>
@@ -342,6 +344,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 16, fontWeight: "600", flex: 1 },
   textDimmed: { color: "#888" },
+  rtl: { textAlign: "right", writingDirection: "rtl" },
 
   badgeRow: { flexDirection: "row", gap: 4, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 140 },
   badge: {

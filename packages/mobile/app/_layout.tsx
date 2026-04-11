@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, StyleProp, ViewStyle } from "react-native";
+import { useEffect } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as Notifications from "expo-notifications";
-import { getIdToken, signOut } from "../services/auth";
 import { api } from "../services/api";
+import { AuthProvider, useAuth } from "../context/AuthContext";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -37,19 +37,21 @@ async function registerForPushNotifications(): Promise<void> {
 }
 
 export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootLayoutInner />
+    </AuthProvider>
+  );
+}
+
+function RootLayoutInner() {
   const router = useRouter();
   const segments = useSegments();
-  const [authChecked, setAuthChecked] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { isAuthenticated, loading, signOut } = useAuth();
 
   useEffect(() => {
-    getIdToken().then((token) => {
-      const authed = !!token;
-      setIsAuthenticated(authed);
-      setAuthChecked(true);
-      if (authed) registerForPushNotifications();
-    });
-  }, []);
+    if (isAuthenticated) registerForPushNotifications();
+  }, [isAuthenticated]);
 
   // Navigate to a coupon when user taps a push notification
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function RootLayout() {
   }, [router]);
 
   useEffect(() => {
-    if (!authChecked) return;
+    if (loading) return;
 
     const inAuthGroup =
       segments[0] === "login" ||
@@ -78,9 +80,9 @@ export default function RootLayout() {
     } else if (isAuthenticated && inAuthGroup) {
       router.replace("/");
     }
-  }, [authChecked, isAuthenticated, segments]);
+  }, [loading, isAuthenticated, segments]);
 
-  if (!authChecked) {
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -91,7 +93,6 @@ export default function RootLayout() {
 
   const handleSignOut = () => {
     signOut();
-    setIsAuthenticated(false);
     router.replace("/login");
   };
 

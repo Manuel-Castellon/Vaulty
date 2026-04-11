@@ -14,6 +14,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
 import type { Coupon, CouponStatus } from "@coupon/shared";
 import { api } from "../../services/api";
+import { formatDate } from "../../utils/date";
+import { isRTL } from "../../utils/bidi";
 
 function formatValue(coupon: Coupon): string | null {
   if (coupon.discount) {
@@ -132,7 +134,7 @@ export default function CouponDetailScreen() {
       )}
 
       <View style={styles.titleRow}>
-        <Text style={styles.title}>{coupon.title}</Text>
+        <Text style={[styles.title, isRTL(coupon.title) && styles.rtl]}>{coupon.title}</Text>
         <View style={styles.badgeGroup}>
           <View style={[styles.typeBadge, isVoucher && styles.typeBadgeVoucher]}>
             <Text style={[styles.typeBadgeText, isVoucher && styles.typeBadgeTextVoucher]}>
@@ -174,19 +176,19 @@ export default function CouponDetailScreen() {
         </View>
       )}
       {coupon.issueDate && (
-        <Row label="Issued" value={new Date(coupon.issueDate).toLocaleDateString()} />
+        <Row label="Issued" value={formatDate(coupon.issueDate)} />
       )}
       {coupon.description && <Row label="Description" value={coupon.description} />}
       {coupon.conditions && <Row label="Conditions" value={coupon.conditions} />}
       {coupon.eventDate && (
-        <Row label="Event date" value={new Date(coupon.eventDate).toLocaleDateString()} />
+        <Row label="Event date" value={formatDate(coupon.eventDate)} />
       )}
       {coupon.seatInfo && <Row label="Seats" value={coupon.seatInfo} />}
       {coupon.quantity && coupon.quantity > 1 && (
         <Row label="Quantity" value={String(coupon.quantity)} />
       )}
       {coupon.expiresAt && (
-        <Row label="Expires" value={new Date(coupon.expiresAt).toLocaleDateString()} />
+        <Row label="Expires" value={formatDate(coupon.expiresAt)} />
       )}
       <Row
         label="Times used"
@@ -260,7 +262,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+      <Text style={[styles.rowValue, isRTL(value) && styles.rtl]}>{value}</Text>
     </View>
   );
 }
@@ -299,6 +301,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontWeight: "600", color: "#333", flex: 1 },
   rowValue: { color: "#333", flex: 2, textAlign: "right" },
+  rtl: { textAlign: "right", writingDirection: "rtl" },
 
   amountBlock: { marginTop: 16, padding: 12, backgroundColor: "#f5f5f5", borderRadius: 8 },
   amountText: { fontSize: 14, color: "#333", marginBottom: 8 },

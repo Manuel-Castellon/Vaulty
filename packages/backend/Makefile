@@ -24,6 +24,9 @@ build-ExpiryCheckFunction:
 build-RegisterTokenFunction:
 	cp $(DIST)/RegisterTokenFunction/register-token.js $(ARTIFACTS_DIR)/register-token.js
 
+build-NotificationPreferencesFunction:
+	cp $(DIST)/NotificationPreferencesFunction/preferences.js $(ARTIFACTS_DIR)/preferences.js
+
 build-ExtractFunction:
 	cp $(DIST)/ExtractFunction/extract.js $(ARTIFACTS_DIR)/extract.js
 

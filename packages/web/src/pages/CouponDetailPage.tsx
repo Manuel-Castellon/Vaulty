@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import type { Coupon, CouponStatus } from "@coupon/shared";
 import { api } from "../services/api";
+import { formatDate } from "../utils/date";
 import styles from "./couponDetail.module.css";
 
 function formatValue(coupon: Coupon): string | null {
@@ -126,7 +127,7 @@ export default function CouponDetailPage() {
           <img src={coupon.imageUrl} alt={coupon.title} className={styles.heroImage} />
         )}
         <div className={styles.heroTop}>
-          <h1 className={styles.heroTitle}>{coupon.title}</h1>
+          <h1 className={styles.heroTitle} dir="auto">{coupon.title}</h1>
           <div className={styles.heroBadges}>
             <span className={`${styles.badge}${isVoucher ? ` ${styles.badgeVoucher}` : ""}`}>
               {isVoucher ? "Voucher" : coupon.category}
@@ -154,19 +155,19 @@ export default function CouponDetailPage() {
         {coupon.description && (
           <div className={styles.row}>
             <span className={styles.rowLabel}>Description</span>
-            <span className={styles.rowValue}>{coupon.description}</span>
+            <span className={styles.rowValue} dir="auto">{coupon.description}</span>
           </div>
         )}
         {coupon.conditions && (
           <div className={styles.row}>
             <span className={styles.rowLabel}>Conditions</span>
-            <span className={styles.rowValue}>{coupon.conditions}</span>
+            <span className={styles.rowValue} dir="auto">{coupon.conditions}</span>
           </div>
         )}
         {coupon.eventDate && (
           <div className={styles.row}>
             <span className={styles.rowLabel}>Event date</span>
-            <span className={styles.rowValue}>{new Date(coupon.eventDate).toLocaleDateString()}</span>
+            <span className={styles.rowValue}>{formatDate(coupon.eventDate)}</span>
           </div>
         )}
         {coupon.seatInfo && (
@@ -186,10 +187,10 @@ export default function CouponDetailPage() {
             <span className={styles.rowLabel}>Expires</span>
             <span className={`${styles.rowValue}${isExpired ? ` ${styles.expiryExpired}` : expiringSoon ? ` ${styles.expiryWarn}` : ""}`}>
               {isExpired
-                ? `Expired ${new Date(coupon.expiresAt).toLocaleDateString()}`
+                ? `Expired ${formatDate(coupon.expiresAt)}`
                 : expiringSoon
-                ? `In ${days} day${days !== 1 ? "s" : ""} — ${new Date(coupon.expiresAt).toLocaleDateString()}`
-                : new Date(coupon.expiresAt).toLocaleDateString()}
+                ? `In ${days} day${days !== 1 ? "s" : ""} — ${formatDate(coupon.expiresAt)}`
+                : formatDate(coupon.expiresAt)}
             </span>
           </div>
         )}
@@ -219,7 +220,7 @@ export default function CouponDetailPage() {
         {coupon.issueDate && (
           <div className={styles.row}>
             <span className={styles.rowLabel}>Issued</span>
-            <span className={styles.rowValue}>{new Date(coupon.issueDate).toLocaleDateString()}</span>
+            <span className={styles.rowValue}>{formatDate(coupon.issueDate)}</span>
           </div>
         )}
         <div className={styles.row}>
