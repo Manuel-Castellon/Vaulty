@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci
+      - run: npm install --legacy-peer-deps
       - run: npm run test --workspace=shared
       - run: npm run typecheck --workspace=packages/mobile
       - run: npm run test --workspace=packages/mobile
@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci
+      - run: npm install --legacy-peer-deps
       - name: Preflight (expo-doctor + prebuild)
         working-directory: packages/mobile
         run: npm run preflight:android
@@ -52,7 +52,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci
+      - run: npm install --legacy-peer-deps
       - name: Install EAS CLI
         run: npm install -g eas-cli
       - name: Start Android preview build in cloud

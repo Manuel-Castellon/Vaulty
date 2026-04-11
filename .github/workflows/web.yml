@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm install --legacy-peer-deps
       - run: npm run test --workspace=shared
       - run: npm run typecheck --workspace=packages/web
       - run: npm run build --workspace=packages/web
