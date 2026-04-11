@@ -7,10 +7,27 @@ import { useAuth } from "../../context/AuthContext";
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const { refreshAuth } = useAuth();
-  const { code } = useLocalSearchParams<{ code?: string }>();
+  const { code, error: oauthError, error_description: oauthErrorDescription } =
+    useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (oauthError) {
+      const desc = oauthErrorDescription ?? "";
+      // Cognito returns invalid_request when the user already has an email/password
+      // account and tries to sign in with Google using the same email.
+      const isEmailConflict =
+        oauthError === "invalid_request" ||
+        desc.includes("already_exists") ||
+        desc.includes("already exists");
+      setError(
+        isEmailConflict
+          ? "An account with this email already exists. Sign in with your password instead."
+          : `Sign-in failed: ${oauthError}${desc ? ` — ${desc}` : ""}`
+      );
+      return;
+    }
+
     if (!code) {
       router.replace("/login");
       return;
@@ -25,7 +42,7 @@ export default function AuthCallbackScreen() {
         console.warn("[auth/callback] OAuth error:", err?.message ?? err);
         setError(err?.message ?? "Sign-in failed. Please try again.");
       });
-  }, [code]);
+  }, [code, oauthError, oauthErrorDescription]);
 
   if (error) {
     return (
