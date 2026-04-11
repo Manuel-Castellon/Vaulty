@@ -29,11 +29,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       })
     );
 
+    // Exclude system records stored in the same table (prefs, push tokens, etc.)
     // Normalize legacy items and apply optional status filter
-    let items = (result.Items ?? []).map((item) => {
-      if (item.status === undefined) item.status = "active";
-      return item;
-    });
+    let items = (result.Items ?? [])
+      .filter((item) => item.id !== "NOTIFICATION_PREFS" && item.id !== "PUSH_TOKEN")
+      .map((item) => {
+        if (item.status === undefined) item.status = "active";
+        return item;
+      });
 
     if (statusFilter) {
       items = items.filter((item) => item.status === statusFilter);
