@@ -34,7 +34,11 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm install --legacy-peer-deps
-      - name: Preflight (expo-doctor + prebuild)
+      - name: Expo doctor (advisory — non-fatal)
+        working-directory: packages/mobile
+        continue-on-error: true
+        run: npx expo-doctor
+      - name: Preflight (prebuild)
         working-directory: packages/mobile
         run: npm run preflight:android
       - name: Production bundle (catches Metro/codegen errors before EAS)

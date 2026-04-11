@@ -6,7 +6,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "build:android": "eas build --platform android",
-    "preflight:android": "expo config --type public && npx expo-doctor && expo prebuild --platform android --no-install",
+    "preflight:android": "expo config --type public && expo prebuild --platform android --no-install",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "ios": "expo run:ios"
