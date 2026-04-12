@@ -12,7 +12,8 @@
     "ios": "expo run:ios"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "setupFiles": ["./jest.setup.env.js"]
   },
   "dependencies": {
     "@coupon/shared": "*",

@@ -50,6 +50,13 @@ const CLIENT_ID_FOR_INIT = process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID as string;
 //   CognitoIdentityServiceProvider.{clientId}.{username}.accessToken
 //   CognitoIdentityServiceProvider.{clientId}.{username}.refreshToken
 //   CognitoIdentityServiceProvider.{clientId}.{username}.clockDrift
+// Exported for tests only — gives direct access to the cache-backed adapter
+export const __SecureCognitoStorageForTests = SecureCognitoStorage;
+export const __cognitoKeyPrefixForTests = `CognitoIdentityServiceProvider.${CLIENT_ID_FOR_INIT}`;
+export function __resetSecureCacheForTests() {
+  _secureCache.clear();
+}
+
 export async function initSecureStorage(): Promise<void> {
   const prefix = `CognitoIdentityServiceProvider.${CLIENT_ID_FOR_INIT}`;
   const lastAuthKey = `${prefix}.LastAuthUser`;
