@@ -17,6 +17,10 @@ const AuthContext = createContext<AuthContextValue>({
 
 let _storageInitialized = false;
 
+export function __resetStorageInitForTests() {
+  _storageInitialized = false;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);

@@ -1,14 +1,16 @@
 import React from "react";
 import { renderHook, act } from "@testing-library/react-native";
-import { AuthProvider, useAuth } from "../context/AuthContext";
+import { AuthProvider, useAuth, __resetStorageInitForTests } from "../context/AuthContext";
 
-// Mock getIdToken and signOut from auth service
+// Mock getIdToken, signOut, and initSecureStorage from auth service
 const mockGetIdToken = jest.fn();
 const mockSignOut = jest.fn();
+const mockInitSecureStorage = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("../services/auth", () => ({
   getIdToken: (...args: unknown[]) => mockGetIdToken(...args),
   signOut: (...args: unknown[]) => mockSignOut(...args),
+  initSecureStorage: (...args: unknown[]) => mockInitSecureStorage(...args),
 }));
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -18,6 +20,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
 describe("AuthContext", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    __resetStorageInitForTests();
   });
 
   it("starts loading and becomes unauthenticated when no token exists", async () => {
