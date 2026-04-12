@@ -154,7 +154,7 @@ export default function CouponsScreen() {
       {!isSearchMode && (
         <>
           {/* Status filter tabs */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScrollView} contentContainerStyle={styles.tabScrollContent}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScrollView} contentContainerStyle={styles.tabScrollContent} nestedScrollEnabled={false}>
             {(["all", "active", "used", "archived", "expired"] as StatusFilter[]).map((s) => (
               <TouchableOpacity
                 key={s}
@@ -194,33 +194,8 @@ export default function CouponsScreen() {
         </>
       )}
 
-      {/* Sort picker modal */}
-      <Modal
-        visible={sortPickerVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSortPickerVisible(false)}
-      >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSortPickerVisible(false)}>
-          <View style={styles.sortSheet}>
-            <Text style={styles.sortSheetTitle}>Sort by</Text>
-            {SORT_OPTIONS.map(({ key, label }) => (
-              <TouchableOpacity
-                key={key}
-                style={[styles.sortSheetItem, sortBy === key && styles.sortSheetItemActive]}
-                onPress={() => { setSortBy(key); setSortPickerVisible(false); }}
-              >
-                <Text style={[styles.sortSheetItemText, sortBy === key && styles.sortSheetItemTextActive]}>
-                  {label}
-                </Text>
-                {sortBy === key && <Text style={styles.sortSheetCheck}>✓</Text>}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       <FlatList
+        style={styles.list}
         data={filtered}
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
@@ -296,6 +271,32 @@ export default function CouponsScreen() {
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      {/* Sort picker modal — at end of tree to avoid layout interference on Android */}
+      <Modal
+        visible={sortPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSortPickerVisible(false)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSortPickerVisible(false)}>
+          <View style={styles.sortSheet}>
+            <Text style={styles.sortSheetTitle}>Sort by</Text>
+            {SORT_OPTIONS.map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.sortSheetItem, sortBy === key && styles.sortSheetItemActive]}
+                onPress={() => { setSortBy(key); setSortPickerVisible(false); }}
+              >
+                <Text style={[styles.sortSheetItemText, sortBy === key && styles.sortSheetItemTextActive]}>
+                  {label}
+                </Text>
+                {sortBy === key && <Text style={styles.sortSheetCheck}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -303,6 +304,7 @@ export default function CouponsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   center: { flex: 1 },
+  list: { flex: 1 },
   error: { color: "red", margin: 16 },
 
   searchBar: {
@@ -323,7 +325,7 @@ const styles = StyleSheet.create({
   },
   searchSpinner: { marginLeft: 8 },
 
-  tabScrollView: { borderBottomWidth: 1, borderBottomColor: "#eee" },
+  tabScrollView: { borderBottomWidth: 1, borderBottomColor: "#eee", flexGrow: 0, flexShrink: 0 },
   tabScrollContent: { paddingHorizontal: 8 },
   tab: {
     paddingHorizontal: 16,
