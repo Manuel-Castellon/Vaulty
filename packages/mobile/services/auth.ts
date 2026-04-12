@@ -5,10 +5,73 @@ import {
   CognitoUserAttribute,
   type CognitoUserSession,
 } from "amazon-cognito-identity-js";
+import * as SecureStore from "expo-secure-store";
+
+// ── Secure token storage ──────────────────────────────────────────────────────
+// amazon-cognito-identity-js requires a synchronous Storage interface (like
+// localStorage). expo-secure-store is async, so we maintain a memory cache for
+// synchronous reads and persist to SecureStore in the background.
+//
+// On cold start, call initSecureStorage() to rehydrate the cache from
+// SecureStore so existing sessions survive app restarts.
+
+const _secureCache = new Map<string, string>();
+
+// SecureStore keys must match [a-zA-Z0-9._-]. Cognito uses dots which are fine.
+// Replace any other special chars just in case.
+function sanitizeKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+const SecureCognitoStorage = {
+  setItem(key: string, value: string): void {
+    _secureCache.set(key, value);
+    SecureStore.setItemAsync(sanitizeKey(key), value).catch(() => {
+      // Non-fatal: token remains in memory for this session
+    });
+  },
+  getItem(key: string): string | null {
+    return _secureCache.get(key) ?? null;
+  },
+  removeItem(key: string): void {
+    _secureCache.delete(key);
+    SecureStore.deleteItemAsync(sanitizeKey(key)).catch(() => {});
+  },
+  clear(): void {
+    _secureCache.clear();
+  },
+};
+
+const CLIENT_ID_FOR_INIT = process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID as string;
+
+// Known Cognito key suffixes for a logged-in user:
+//   CognitoIdentityServiceProvider.{clientId}.LastAuthUser
+//   CognitoIdentityServiceProvider.{clientId}.{username}.idToken
+//   CognitoIdentityServiceProvider.{clientId}.{username}.accessToken
+//   CognitoIdentityServiceProvider.{clientId}.{username}.refreshToken
+//   CognitoIdentityServiceProvider.{clientId}.{username}.clockDrift
+export async function initSecureStorage(): Promise<void> {
+  const prefix = `CognitoIdentityServiceProvider.${CLIENT_ID_FOR_INIT}`;
+  const lastAuthKey = `${prefix}.LastAuthUser`;
+  const sanitized = sanitizeKey(lastAuthKey);
+  const lastAuthUser = await SecureStore.getItemAsync(sanitized);
+  if (!lastAuthUser) return;
+  _secureCache.set(lastAuthKey, lastAuthUser);
+
+  const userKeys = ["idToken", "accessToken", "refreshToken", "clockDrift"];
+  await Promise.all(
+    userKeys.map(async (suffix) => {
+      const k = `${prefix}.${lastAuthUser}.${suffix}`;
+      const v = await SecureStore.getItemAsync(sanitizeKey(k));
+      if (v != null) _secureCache.set(k, v);
+    })
+  );
+}
 
 const pool = new CognitoUserPool({
   UserPoolId: process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID as string,
   ClientId: process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID as string,
+  Storage: SecureCognitoStorage,
 });
 
 const COGNITO_DOMAIN = process.env.EXPO_PUBLIC_COGNITO_DOMAIN as string;

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getIdToken, signOut as cognitoSignOut } from "../services/auth";
+import { getIdToken, initSecureStorage, signOut as cognitoSignOut } from "../services/auth";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -15,11 +15,17 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: () => {},
 });
 
+let _storageInitialized = false;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refreshAuth = async () => {
+    if (!_storageInitialized) {
+      await initSecureStorage();
+      _storageInitialized = true;
+    }
     const token = await getIdToken();
     setIsAuthenticated(!!token);
   };

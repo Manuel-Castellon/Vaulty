@@ -175,6 +175,42 @@ Current `itemType: "coupon" | "voucher"` does not cleanly model multi-store gift
 ### Web/browser push notifications
 Web push requires Web Push API + service workers + VAPID keys — significant complexity. Post-MVP. Mobile push is fully implemented.
 
+### AI diligence statement
+Write a formal disclosure covering: which AI systems were used, how AI contributed to the project, the review process employed, assertion of responsibility for the final output, and any context-specific considerations (academic, professional, etc.).
+
+## Pre-Production Checklist (before public launch)
+
+### Security gaps — acceptable for MVP, fix before public launch
+- **Web tokens in localStorage**: `amazon-cognito-identity-js` and Google SSO `id_token` (`packages/web/src/services/auth.ts:123`) are stored in localStorage. Upgrading to httpOnly cookies requires a BFF (Backend for Frontend) architecture — significant rework. Low exploitability now (no XSS surface in React), but fix before scale.
+- **No Content-Security-Policy header**: API Gateway doesn't send CSP headers. Add via CloudFront response headers policy.
+- **S3 images are publicly readable by URL**: `presigned-url.ts` returns a public `https://bucket.s3.amazonaws.com/{key}` URL. The UUID makes URLs hard to guess (security-by-obscurity). Post-MVP: add CloudFront signed URL flow or S3 pre-signed GET URLs.
+- **No per-user API rate limiting**: Lambda functions have no rate limiting beyond the AI extraction quota cooldown. Add WAF or API Gateway usage plans before public launch.
+
+### AWS resource migration (preview → prod)
+Every AWS resource is named by the `Stage` SAM parameter. Deploying with `Stage=prod` creates **entirely new, empty resources** — users lose all data unless migrated.
+
+**Data migration steps:**
+1. **DynamoDB**: export `coupons-dev` via S3 export → import into `coupons-prod`. Straightforward, no data loss.
+2. **Cognito users**: use AWS bulk user import (CSV). **Passwords cannot be migrated** — users receive a "reset your password" email on first prod login. Unavoidable Cognito limitation.
+3. **S3 images**: `aws s3 sync s3://vaulty-images-dev-829808296740 s3://vaulty-images-prod-{accountId}`. Also rewrite `imageUrl` fields in migrated DynamoDB records to point to prod bucket.
+4. **Mobile app**: Cognito pool ID and client ID are baked into EAS builds. Switching Cognito pools requires a new EAS build + app update push.
+
+**Before deploying prod stack:**
+- Add production domain to `CallbackURLs` / `LogoutURLs` in `template.yaml` `CognitoUserPoolClient`
+- Enable DynamoDB Point-in-Time Recovery (`PointInTimeRecoverySpecification: PointInTimeRecoveryEnabled: true` in `template.yaml`)
+- Use a separate `GEMINI_API_KEY` for prod so preview/testing doesn't burn prod quota
+- Set `WebAppUrl` SAM parameter to the production CloudFront/custom domain (not localhost)
+
+**Custom domain for prod web:**
+- Add a CNAME/alias in Route 53 → CloudFront distribution (`dxs2rcgjhblur.cloudfront.net`)
+- Request an ACM certificate in us-east-1 (required for CloudFront)
+- Add the domain as an alternate domain name on the CloudFront distribution
+
+### EAS / app store (for public Android distribution)
+- Current EAS profile is `preview` (internal APK). Switch to `production` profile for Google Play.
+- Google Play requires a signed AAB (not APK), a store listing, screenshots, and privacy policy.
+- Internal testing → closed track → open track is the standard rollout path.
+
 ## Conventions
 
 - TypeScript everywhere — no `any`, no skipping type checks
