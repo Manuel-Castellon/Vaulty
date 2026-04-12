@@ -1,5 +1,5 @@
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": process.env.CORS_ORIGIN ?? "*",
   "Access-Control-Allow-Headers": "Content-Type,Authorization",
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
 };
@@ -32,4 +32,10 @@ export const serverError = (message = "Internal server error") => ({
   statusCode: 500,
   headers: { "Content-Type": "application/json", ...CORS },
   body: JSON.stringify({ error: { code: "INTERNAL_ERROR", message } }),
+});
+
+export const unauthorized = (message = "Unauthorized") => ({
+  statusCode: 401,
+  headers: { "Content-Type": "application/json", ...CORS },
+  body: JSON.stringify({ error: { code: "UNAUTHORIZED", message } }),
 });

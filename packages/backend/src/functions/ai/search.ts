@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "../../lib/dynamodb";
-import { ok, badRequest, serverError } from "../../lib/response";
+import { ok, badRequest, serverError, unauthorized } from "../../lib/response";
 import type { Coupon } from "@coupon/shared";
 
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
@@ -33,7 +33,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return serverError("AI service not configured");
 
-  const userId = event.requestContext.authorizer?.claims?.sub ?? "anonymous";
+  const userId = event.requestContext.authorizer?.claims?.sub;
+  if (!userId) return unauthorized();
 
   let body: { query: string };
   try {

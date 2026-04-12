@@ -1,10 +1,11 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "../../lib/dynamodb";
-import { ok, notFound, serverError } from "../../lib/response";
+import { ok, notFound, serverError, unauthorized } from "../../lib/response";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const userId = event.requestContext.authorizer?.claims?.sub ?? "anonymous";
+  const userId = event.requestContext.authorizer?.claims?.sub;
+  if (!userId) return unauthorized();
   const id = event.pathParameters?.id;
 
   if (!id) return notFound();

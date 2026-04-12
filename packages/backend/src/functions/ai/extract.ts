@@ -9,7 +9,7 @@
  */
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { createHash } from "crypto";
-import { ok, badRequest, serverError } from "../../lib/response";
+import { ok, badRequest, serverError, unauthorized } from "../../lib/response";
 import type { ExtractResponse, ExtractionResult, ExtractRequest, SourceScript } from "@coupon/shared";
 import { runExtractionPipeline } from "../../services/extractionPipeline";
 import { extractQRFromImage } from "../../services/qrExtractionService";
@@ -266,6 +266,8 @@ ${JSON.stringify(extracted)}`;
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 export const handler: APIGatewayProxyHandler = async (event) => {
+  if (!event.requestContext?.authorizer?.claims?.sub) return unauthorized();
+
   let body: ExtractRequest;
   try {
     body = JSON.parse(event.body ?? "");

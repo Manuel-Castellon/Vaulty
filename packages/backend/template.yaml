@@ -16,6 +16,7 @@ Globals:
         GEMINI_API_KEY: !Ref GeminiApiKey
         BEDROCK_ENABLED: !Ref BedrockEnabled
         BEDROCK_MODEL_ID: !Ref BedrockModelId
+        CORS_ORIGIN: !Ref WebAppUrl
   Api:
     Auth:
       DefaultAuthorizer: CognitoAuthorizer
@@ -24,7 +25,7 @@ Globals:
           UserPoolArn: !GetAtt CognitoUserPool.Arn
       AddDefaultAuthorizerToCorsPreflight: false
     Cors:
-      AllowOrigin: "'*'"
+      AllowOrigin: !Sub "'${WebAppUrl}'"
       AllowHeaders: "'Content-Type,Authorization'"
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
 
@@ -174,7 +175,7 @@ Resources:
         CorsRules:
           - AllowedHeaders: ["*"]
             AllowedMethods: [GET, PUT]
-            AllowedOrigins: ["*"]
+            AllowedOrigins: [!Ref WebAppUrl]
             MaxAge: 3000
       LifecycleConfiguration:
         Rules:

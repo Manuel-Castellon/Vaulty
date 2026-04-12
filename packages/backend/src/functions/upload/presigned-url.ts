@@ -2,13 +2,14 @@ import { APIGatewayProxyHandler } from "aws-lambda";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidv4 } from "uuid";
-import { ok, badRequest, serverError } from "../../lib/response";
+import { ok, badRequest, serverError, unauthorized } from "../../lib/response";
 
 const s3 = new S3Client({ region: process.env.REGION });
 const BUCKET = process.env.IMAGES_BUCKET!;
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const userId = event.requestContext.authorizer?.claims?.sub ?? "anonymous";
+  const userId = event.requestContext.authorizer?.claims?.sub;
+  if (!userId) return unauthorized();
   const contentType = event.queryStringParameters?.contentType ?? "image/jpeg";
 
   if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) {

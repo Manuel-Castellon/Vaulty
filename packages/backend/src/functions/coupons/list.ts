@@ -1,11 +1,12 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "../../lib/dynamodb";
-import { ok, serverError } from "../../lib/response";
+import { ok, serverError, unauthorized } from "../../lib/response";
 import type { CouponStatus } from "@coupon/shared";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const userId = event.requestContext.authorizer?.claims?.sub ?? "anonymous";
+  const userId = event.requestContext.authorizer?.claims?.sub;
+  if (!userId) return unauthorized();
   const limit = event.queryStringParameters?.limit
     ? parseInt(event.queryStringParameters.limit)
     : 50;

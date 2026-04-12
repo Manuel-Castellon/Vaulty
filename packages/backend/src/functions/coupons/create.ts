@@ -2,11 +2,12 @@ import { APIGatewayProxyHandler } from "aws-lambda";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { ddb, TABLE_NAME } from "../../lib/dynamodb";
-import { created, badRequest, serverError } from "../../lib/response";
+import { created, badRequest, serverError, unauthorized } from "../../lib/response";
 import type { CreateCouponInput, Coupon } from "@coupon/shared";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const userId = event.requestContext.authorizer?.claims?.sub ?? "anonymous";
+  const userId = event.requestContext.authorizer?.claims?.sub;
+  if (!userId) return unauthorized();
 
   let input: CreateCouponInput;
   try {

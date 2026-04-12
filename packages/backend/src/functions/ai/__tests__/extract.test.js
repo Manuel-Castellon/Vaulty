@@ -3,7 +3,7 @@ const { handler, __resetQuotaCooldownForTests } = require("../extract.ts");
 function createEvent(body) {
   return {
     body: JSON.stringify(body),
-    requestContext: {},
+    requestContext: { authorizer: { claims: { sub: "test-user-1" } } },
   };
 }
 

@@ -3,13 +3,14 @@ import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ddb, TABLE_NAME } from "../../lib/dynamodb";
-import { ok, notFound, serverError } from "../../lib/response";
+import { ok, notFound, serverError, unauthorized } from "../../lib/response";
 
 const s3 = new S3Client({ region: process.env.REGION ?? "us-east-1" });
 const BUCKET = process.env.IMAGES_BUCKET!;
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const userId = event.requestContext.authorizer?.claims?.sub ?? "anonymous";
+  const userId = event.requestContext.authorizer?.claims?.sub;
+  if (!userId) return unauthorized();
   const id = event.pathParameters?.id;
 
   if (!id) return notFound();
