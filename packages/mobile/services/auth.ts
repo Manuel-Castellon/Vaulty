@@ -97,6 +97,10 @@ function getStoredFederatedToken(): string | null {
   }
 }
 
+function cognitoUser(email: string) {
+  return new CognitoUser({ Username: email, Pool: pool, Storage: SecureCognitoStorage });
+}
+
 export function signUp(email: string, password: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const attrs = [new CognitoUserAttribute({ Name: "email", Value: email })];
@@ -109,8 +113,7 @@ export function signUp(email: string, password: string): Promise<void> {
 
 export function confirmSignUp(email: string, code: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.confirmRegistration(code, true, (err) => {
+    cognitoUser(email).confirmRegistration(code, true, (err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -119,8 +122,7 @@ export function confirmSignUp(email: string, code: string): Promise<void> {
 
 export function resendConfirmationCode(email: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.resendConfirmationCode((err) => {
+    cognitoUser(email).resendConfirmationCode((err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -129,7 +131,7 @@ export function resendConfirmationCode(email: string): Promise<void> {
 
 export function signIn(email: string, password: string): Promise<CognitoUserSession> {
   return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
+    const user = cognitoUser(email);
     const auth = new AuthenticationDetails({ Username: email, Password: password });
     user.authenticateUser(auth, {
       onSuccess: resolve,
@@ -191,8 +193,7 @@ export function getCurrentUserId(): Promise<string | null> {
 
 export function forgotPassword(email: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.forgotPassword({
+    cognitoUser(email).forgotPassword({
       onSuccess: () => resolve(),
       onFailure: (err) => reject(err),
     });
@@ -205,8 +206,7 @@ export function confirmForgotPassword(
   newPassword: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.confirmPassword(code, newPassword, {
+    cognitoUser(email).confirmPassword(code, newPassword, {
       onSuccess: () => resolve(),
       onFailure: (err) => reject(err),
     });
