@@ -214,7 +214,8 @@ async function callGemini(
 
 async function handleGemini(
   apiKey: string,
-  body: ExtractRequest
+  body: ExtractRequest,
+  quotaKey: string
 ): Promise<ExtractResponse> {
   const isImage = !!body.mimeType && IMAGE_MIME_TYPES.has(body.mimeType);
   const imageBytes = isImage && body.data ? Buffer.from(body.data, "base64") : undefined;
@@ -228,7 +229,20 @@ async function handleGemini(
       : Promise.resolve({ qrImageS3Key: null, qrData: null }),
   ]);
 
-  if (extractionResult.status === "rejected") throw extractionResult.reason;
+  if (extractionResult.status === "rejected") {
+    if (extractionResult.reason instanceof GeminiQuotaError && qrResult.status === "fulfilled") {
+      const qr = qrResult.value;
+      if (qr.qrData || qr.qrImageS3Key) {
+        storeQuotaCooldown(quotaKey, extractionResult.reason.retryAfterSeconds);
+        return {
+          extraction: { ...(qr.qrData ? { code: qr.qrData } : {}) } as any,
+          qrImageS3Key: qr.qrImageS3Key ?? undefined,
+          warnings: ["quota_exhausted"],
+        };
+      }
+    }
+    throw extractionResult.reason;
+  }
 
   let extracted = extractionResult.value;
   const qr = qrResult.status === "fulfilled" ? qrResult.value : { qrImageS3Key: null, qrData: null };
@@ -314,7 +328,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (!apiKey) return serverError("AI service not configured");
 
   try {
-    const result = await handleGemini(apiKey, body);
+    const result = await handleGemini(apiKey, body, quotaKey);
     return ok<ExtractResponse>(result);
   } catch (err) {
     console.error("[extract][handler_error]", { failureClass: "unknown", error: err });

@@ -12,7 +12,6 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { BarCodeScanner } from "expo-barcode-scanner";
 import {
   getExtractionSuggestion,
   mergeExtraction,
@@ -157,51 +156,40 @@ export default function AddCouponScreen() {
       itemType,
     });
     try {
-      const [aiResult, qrResult] = await Promise.allSettled([
-        api.ai.extract({ data: asset.base64, mimeType }),
-        BarCodeScanner.scanFromURLAsync(asset.uri, [BarCodeScanner.Constants.BarCodeType.qr]),
-      ]);
+      const aiResult = await api.ai.extract({ data: asset.base64, mimeType });
 
-      const qrCode =
-        qrResult.status === "fulfilled"
-          ? qrResult.value[0]?.data
-          : undefined;
-      const hasServerQrImage = aiResult.status === "fulfilled" && !!aiResult.value.qrImageS3Key;
-      if (aiResult.status === "fulfilled") {
-        const { form: extractedForm, itemType: extractedType } = applyExtraction(aiResult.value.extraction);
-        setForm((current) => mergeExtraction(current, extractedForm, EMPTY_FORM));
-        setAiSuggestion(getExtractionSuggestion(itemType, extractedType));
-        setExtractWarning(
-          aiResult.value.warnings?.includes("language_validation_failed")
-            ? "AI may have translated fields. Please verify before saving."
-            : null
-        );
-        if (aiResult.value.qrImageS3Key) setQrImageS3Key(aiResult.value.qrImageS3Key);
-        if (qrCode) {
-          setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
-        }
-        const qrDetectionType = qrCode ? "payload" : hasServerQrImage ? "image" : "none";
+      const hasServerQrImage = !!aiResult.qrImageS3Key;
+      const extractedCode = aiResult.extraction?.code;
+
+      const { form: extractedForm, itemType: extractedType } = applyExtraction(aiResult.extraction);
+      setForm((current) => mergeExtraction(current, extractedForm, EMPTY_FORM));
+      setAiSuggestion(getExtractionSuggestion(itemType, extractedType));
+      
+      setExtractWarning(
+        aiResult.warnings?.includes("language_validation_failed")
+          ? "AI may have translated fields. Please verify before saving."
+          : null
+      );
+      if (aiResult.warnings?.includes("quota_exhausted")) {
+        setManualFallbackHint("Scanning is temporarily unavailable right now. You can still enter the voucher manually below.");
+        setQrExtractionHint(extractedCode 
+          ? "AI scan is unavailable right now. Only QR was scanned and will be saved."
+          : "AI is unavailable, and no QR was detected.");
+      }
+
+      if (aiResult.qrImageS3Key) setQrImageS3Key(aiResult.qrImageS3Key);
+      
+      if (!aiResult.warnings?.includes("quota_exhausted")) {
+        const qrDetectionType = extractedCode ? "payload" : hasServerQrImage ? "image" : "none";
         console.info("[add-coupon][extract] completed", {
           source: "image",
           qrDetectionType,
         });
-        setQrExtractionHint(qrCode
+        setQrExtractionHint(extractedCode
           ? "QR payload detected and added. It will appear on the saved voucher."
           : hasServerQrImage
             ? "QR image detected and saved. It will appear on the saved voucher."
             : "No QR was detected from this image.");
-      } else {
-        const message = aiResult.reason?.message ?? "Extraction failed";
-        if (qrCode) {
-          setForm((current) => mergeExtraction(current, { qrCode }, EMPTY_FORM));
-          setExtractError(null);
-          setManualFallbackHint(null);
-          setExtractWarning(null);
-          setQrExtractionHint("AI scan is unavailable right now. Only QR was scanned and will be saved.");
-          console.info("[add-coupon][extract] partial_success_qr_only", { source: "image", message });
-          return;
-        }
-        throw aiResult.reason;
       }
     } catch (err: any) {
       const message = err.message ?? "Extraction failed";

@@ -11,11 +11,11 @@ Updated: 2026-04-10
    - ⏳ Produce internal test APK/AAB and verify install path end-to-end (cloud Expo build still pending success).
 
 2. Critical Android App Crash
-   - 🚨 Regression: On the newest Android build, pressing the `+` FAB to upload a voucher/coupon crashes the app. Needs immediate debugging before distribution.
+   - ✅ Removed deprecated `expo-barcode-scanner` and fully transitioned to backend `jsQR` via partial success fallbacks. Pending manual test by Manuel.
 
-2. Password reset flow
-   - Implement forgot/reset password screens and API wiring on web + mobile.
-   - Validate Cognito reset flow and error states.
+3. Password reset flow
+   - ✅ Implement forgot/reset password screens and API wiring on web + mobile.
+   - ✅ Validate Cognito reset flow and error states (Verified working by Manuel).
 
 ## P1 — Important MVP completeness
 
