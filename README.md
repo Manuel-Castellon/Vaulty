@@ -15,7 +15,7 @@ Vaulty is a modern, cross-platform application that helps users digitize, track,
 
 Vaulty seamlessly captures and manages receipts. Using integrated artificial intelligence, you simply snap a photo—Vaulty automatically populates the store, discount amount, expiration dates, and QR code logic directly into the cross-platform application.
 
-*(Live demonstration video pending)*
+<video src="./docs/demo/Vaulty_Demo.mp4" width="800" controls></video>
 
 ## 🏗️ Architecture Stack
 
