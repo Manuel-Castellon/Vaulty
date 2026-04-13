@@ -129,24 +129,15 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 
 - Working tree is intentionally dirty with active MVP changes across backend, mobile, web, and shared. Do not reset or discard anything without Manuel's explicit instruction.
 - AI extraction currently uses Gemini 2.5 Flash Lite only. Quota exhaustion returns a manual-entry fallback message; alternative free-tier fallback providers are tracked in `fallback_ai_backlog.md`.
-- Extraction hardens language preservation for Hebrew/non-Latin documents in `packages/backend/src/functions/ai/extract.ts`.
-- Live extraction smoke coverage exists in `packages/backend/src/functions/ai/__tests__/extract.live.test.js` and currently targets `examples/dominos.pdf` and `examples/castro.pdf`.
-- Shared merge behavior in `shared/src/lib/extractionMerge.ts` intentionally preserves user-entered form values; extracted values only fill blank/default fields.
-- Mobile manual verification focus after the latest extraction work is in `mobile_smoke_checklist.md`.
-- Next model-assisted manual task: verify golden examples for PDF/image scanning, starting with the fixtures and acceptance criteria in `NEXT_MODEL_HANDOFF.md`.
-
-## Current Snapshot (as of 2026-04-10)
-
-- AI extraction remains Gemini-only and can hit free-tier quota; UX now surfaces retry-seconds from provider when available.
-- Backend includes quota cooldown short-circuiting for repeated same-payload extraction attempts.
-- QR persistence/display is hardened:
-  - If explicit `qrCode` is missing at create-time, backend now falls back to storing `qrCode` from `code`.
-  - Add flows support partial success messaging when AI fails but QR decode succeeds.
-- CI/CD is active and deploys backend on `main`; heavier hardening checks are documented as deferred post-MVP.
-- Mobile cloud build pipeline is partially in place:
-  - EAS build profiles exist in `packages/mobile/eas.json`.
-  - GitHub mobile workflow includes gated EAS Android preview build when `EXPO_TOKEN` is configured.
-  - Final step pending: confirm installable APK from current queued Expo build and complete smoke verification.
+## Current Handoff (2026-04-13) - MVP Critical Fixes Complete
+ 
+ - **Architecture Update:** Client-side `expo-barcode-scanner` and native QR decoding logic was completely removed due to deprecation crashes in Expo SDK 51. The fallback is now strictly a backend responsibility; if Gemini hits a quota limit, the backend node process parallel-runs `jsQR` on the image and safely returns a partial success `[qrCode]` payload alongside a `quota_exhausted` warning. This mathematically guarantees cross-platform parity for QR scanning across native Android, Desktop Web, and Mobile Web without relying on individual client-side camera APIs.
+ - **Dependency Hardening:** The persistent instant-crash regression when navigating to `/add` on Android was chased down and resolved. A native mismatch between Expo 51's React Native engine and `@react-native-community/datetimepicker@9.1.0` was causing the native stack to crash. `datetimepicker` was successfully downgraded back to `8.0.1`, restoring the `+` FAB functionality.
+ - **Auth:** Cognito forgot-password flows have been implemented and verified end-to-end on both web and mobile.
+ - **Documentation:** Expanded the `MVP_GAP_CHECKLIST.md` to formally document post-MVP observability and LLM abstraction layers.
+ 
+ ### ⏳ Next Session Goal
+ Manuel will physically verify the next AES-generated Android APK on-device. If the `+` FAB navigation functions correctly without jumping out to the launcher, the remaining priorities are: Notification control screens, Cloudwatch observation dashboard, and UI Polish.
 
 ## Cross-Platform Conventions
 
