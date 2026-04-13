@@ -11,7 +11,7 @@ Updated: 2026-04-10
    - ⏳ Produce internal test APK/AAB and verify install path end-to-end (cloud Expo build still pending success).
 
 2. Critical Android App Crash
-   - ✅ Removed deprecated `expo-barcode-scanner` and fully transitioned to backend `jsQR` via partial success fallbacks. Pending manual test by Manuel.
+   - ⏳ Removed deprecated `expo-barcode-scanner` and fully transitioned to backend `jsQR` via partial success fallbacks. Pending manual test by Manuel.
 
 3. Password reset flow
    - ✅ Implement forgot/reset password screens and API wiring on web + mobile.
@@ -46,3 +46,9 @@ Updated: 2026-04-10
 
 - Web push notifications.
 - Secondary provider fallback for full extraction (non-Gemini LLM path), only if still needed after quota behavior is acceptable.
+- Structured logging.
+- Basic monitoring dashboard.
+- Error tracking.
+- CloudWatch dashboards.
+- Basic alarms.
+- Adding an LLM abstraction layer (to easily switch between paid LLMs like Claude, OpenAI, or paid Gemini if necessary).

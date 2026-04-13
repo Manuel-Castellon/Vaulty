@@ -19,6 +19,8 @@ https://github.com/user-attachments/assets/cf6eb0b8-d958-49b1-befa-c3a98394de4a
 
 *If the inline video does not play, [click here to view the demo](https://github.com/Manuel-Castellon/Vaulty/blob/main/docs/demo/Vaulty_Demo.mp4).*
 
+**🌐 [Try the Live Web App Here!](https://dxs2rcgjhblur.cloudfront.net/)**
+
 ## 🏗️ Architecture Stack
 
 Vaulty handles complex state across web and mobile via a unified, serverless backend. 
@@ -36,6 +38,7 @@ graph TD
 
 - **Full-Stack Monorepo:** Structured using NPM Workspaces. The `@coupon/shared` library enforces complete end-to-end type safety between the AI backend and all specific clients via TypeScript contracts.
 - **Serverless Scale & IaC:** Completely serverless infrastructure managed via AWS SAM (CloudFormation footprint). Provides infinite scalability while scaling to zero when unused.
+- **Automated CI/CD Pipelines:** Features a robust GitHub Actions pipeline that automatically runs `tsc` typechecks and subsequently executes a `sam deploy` to push infrastructure updates and bundle code directly to AWS upon every merge to `main`.
 - **Pragmatic AI Fallbacks:** Integrates the Gemini API for intelligent data extraction, but prioritizes UX by building robust manual-entry fallback paths, cooldowns, and rate limits to elegantly handle free-tier quotas and AI hallucinations.
 - **Cross-Platform Parity:** Ships both a React Native (Expo) app and a Vite React web app. Both frontends maintain UI parity and leverage the exact same API.
 - **Event-Driven Push Notifications:** Leverages Amazon EventBridge for daily sweeps that trigger expiration push notifications for upcoming DynamoDB TTLs via Expo's Push API.
