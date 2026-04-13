@@ -10,6 +10,9 @@ Updated: 2026-04-10
    - ✅ Local Android preflight now passes (`npm run preflight:android`).
    - ⏳ Produce internal test APK/AAB and verify install path end-to-end (cloud Expo build still pending success).
 
+2. Critical Android App Crash
+   - 🚨 Regression: On the newest Android build, pressing the `+` FAB to upload a voucher/coupon crashes the app. Needs immediate debugging before distribution.
+
 2. Password reset flow
    - Implement forgot/reset password screens and API wiring on web + mobile.
    - Validate Cognito reset flow and error states.
