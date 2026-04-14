@@ -125,6 +125,7 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - EAS / Android cloud build (EXPO_TOKEN needs to be configured in GitHub secrets)
 - Web push notifications (post-MVP)
 - Multi-store gift card type (post-MVP)
+- Manual Mobile Verification (on-device testing of new features)
 
 ## Current Handoff (2026-04-14) - High-ROI Enhancements Complete
 
@@ -134,7 +135,9 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - **Documentation:** README expanded with system-wide architecture, CI/CD pipelines, and LLM architecture diagrams for recruiter review.
 
 ### ⏳ Next Session Goal
-The mobile application and backend extraction pipeline are now extremely robust. Next steps involve fine-tuning the notification control screens and finalizing the UI polish before the final recruiter showcase.
+The mobile application and backend extraction pipeline are now extrêmement robust.
+- **Manual Verification**: User to verify the new "📄 File" button and PDF extraction on a real device once the latest EAS build completes.
+- **Next Features**: fine-tuning the notification control screens and finalizing the UI polish before the final recruiter showcase.
 
 
 ## Cross-Platform Conventions

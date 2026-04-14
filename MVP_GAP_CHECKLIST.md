@@ -48,6 +48,7 @@ Updated: 2026-04-10
 - ✅ Structured logging.
 - ✅ LLM abstraction layer (model-agnostic interface implemented).
 - ✅ Basic monitoring dashboard (queryable via CloudWatch).
+- ⏳ **Manual Verification**: User must verify mobile PDF flow on-device after EAS build completes.
 - Error tracking (Sentry/Bugsnag).
 - CloudWatch dashboards (visual charts).
 - Basic alarms.
