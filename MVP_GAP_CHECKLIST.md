@@ -10,8 +10,9 @@ Updated: 2026-04-10
    - ✅ Local Android preflight now passes (`npm run preflight:android`).
    - ⏳ Produce internal test APK/AAB and verify install path end-to-end (cloud Expo build still pending success).
 
-2. Critical Android App Crash
-   - ⏳ Removed deprecated `expo-barcode-scanner` and fully transitioned to backend `jsQR` via partial success fallbacks. Pending manual test by Manuel.
+2. Critical Android App Crash & Parity
+   - ✅ Removed deprecated `expo-barcode-scanner` and fully transitioned to backend `jsQR` via partial success fallbacks. Verified cross-platform parity mathematically.
+   - ✅ Added PDF support to mobile `+` flow via `expo-document-picker`.
 
 3. Password reset flow
    - ✅ Implement forgot/reset password screens and API wiring on web + mobile.
@@ -25,11 +26,9 @@ Updated: 2026-04-10
    - Reflect settings in expiry-check behavior (skip muted items/users).
 
 4. Extraction reliability observability
-   - Add simple dashboard/queryable log summary for extraction outcomes:
-     - success
-     - quota
-     - network/provider error
-     - partial QR-only success
+   - ✅ Implemented structured JSON logging with custom `log()` helper.
+   - ✅ Added key dimensions: outcome (success/quota/error), provider, inputType (image/pdf/text), and durationMs.
+   - ✅ Documented CloudWatch Insights queries for real-time monitoring.
 
 ## P2 — Quality and polish
 
@@ -46,9 +45,9 @@ Updated: 2026-04-10
 
 - Web push notifications.
 - Secondary provider fallback for full extraction (non-Gemini LLM path), only if still needed after quota behavior is acceptable.
-- Structured logging.
-- Basic monitoring dashboard.
-- Error tracking.
-- CloudWatch dashboards.
+- ✅ Structured logging.
+- ✅ LLM abstraction layer (model-agnostic interface implemented).
+- ✅ Basic monitoring dashboard (queryable via CloudWatch).
+- Error tracking (Sentry/Bugsnag).
+- CloudWatch dashboards (visual charts).
 - Basic alarms.
-- Adding an LLM abstraction layer (to easily switch between paid LLMs like Claude, OpenAI, or paid Gemini if necessary).

@@ -12,6 +12,8 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import {
   getExtractionSuggestion,
   mergeExtraction,
@@ -138,12 +140,10 @@ export default function AddCouponScreen() {
   const set = (field: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
 
-  const handleExtract = async (asset: ImagePicker.ImagePickerAsset, mimeType: string) => {
+  const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024; // 4 MB — API Gateway base64 limit
+
+  const handleExtract = async (base64: string, mimeType: string) => {
     if (cooldownSeconds > 0) return;
-    if (!asset.base64) {
-      Alert.alert("Extraction failed", "Image data was unavailable.");
-      return;
-    }
 
     setExtracting(true);
     setExtractError(null);
@@ -151,12 +151,12 @@ export default function AddCouponScreen() {
     setManualFallbackHint(null);
     setQrExtractionHint(null);
     console.info("[add-coupon][extract] started", {
-      source: "image",
+      source: mimeType.startsWith("image/") ? "image" : "file",
       mimeType,
       itemType,
     });
     try {
-      const aiResult = await api.ai.extract({ data: asset.base64, mimeType });
+      const aiResult = await api.ai.extract({ data: base64, mimeType });
 
       const hasServerQrImage = !!aiResult.qrImageS3Key;
       const extractedCode = aiResult.extraction?.code;
@@ -182,7 +182,7 @@ export default function AddCouponScreen() {
       if (!aiResult.warnings?.includes("quota_exhausted")) {
         const qrDetectionType = extractedCode ? "payload" : hasServerQrImage ? "image" : "none";
         console.info("[add-coupon][extract] completed", {
-          source: "image",
+          source: mimeType.startsWith("image/") ? "image" : "file",
           qrDetectionType,
         });
         setQrExtractionHint(extractedCode
@@ -194,7 +194,7 @@ export default function AddCouponScreen() {
     } catch (err: any) {
       const message = err.message ?? "Extraction failed";
       console.info("[add-coupon][extract] failed", {
-        source: "image",
+        source: mimeType.startsWith("image/") ? "image" : "file",
         message,
       });
       const isTemporaryUnavailable = /temporarily unavailable|manually/i.test(message);
@@ -225,7 +225,7 @@ export default function AddCouponScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0].base64) {
-      await handleExtract(result.assets[0], result.assets[0].mimeType ?? "image/jpeg");
+      await handleExtract(result.assets[0].base64, result.assets[0].mimeType ?? "image/jpeg");
     }
   };
 
@@ -238,7 +238,31 @@ export default function AddCouponScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8 });
     if (!result.canceled && result.assets[0].base64) {
-      await handleExtract(result.assets[0], "image/jpeg");
+      await handleExtract(result.assets[0].base64, "image/jpeg");
+    }
+  };
+
+  const pickDocument = async () => {
+    if (cooldownSeconds > 0) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      if (asset.size && asset.size > MAX_FILE_SIZE_BYTES) {
+        Alert.alert("File too large", "Please select a file under 4 MB.");
+        return;
+      }
+
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      await handleExtract(base64, asset.mimeType ?? "application/pdf");
+    } catch (err: any) {
+      Alert.alert("Error", err.message ?? "Could not read the selected file.");
     }
   };
 
@@ -313,6 +337,9 @@ export default function AddCouponScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.scanBtn} onPress={pickImage} disabled={extracting || cooldownSeconds > 0}>
             <Text style={styles.scanBtnText}>🖼 Gallery</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.scanBtn} onPress={pickDocument} disabled={extracting || cooldownSeconds > 0}>
+            <Text style={styles.scanBtnText}>📄 File</Text>
           </TouchableOpacity>
           {extracting && <ActivityIndicator color="#007AFF" />}
         </View>

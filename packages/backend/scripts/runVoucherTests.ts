@@ -17,9 +17,8 @@
 
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from "fs";
 import { join, extname, basename } from "path";
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { extractVoucherFields } from "../src/services/bedrockExtractionService";
-import { runExtractionPipeline } from "../src/services/extractionPipeline";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { createProvider } from "../src/services/llmProvider";
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +62,11 @@ async function deleteTempFromS3(key: string): Promise<void> {
   }
 }
 
+async function getFromS3(key: string): Promise<Buffer> {
+  const resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET!, Key: key }));
+  return Buffer.from(await resp.Body!.transformToByteArray());
+}
+
 function getMimeType(filePath: string): string {
   return MIME_MAP[extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
@@ -99,17 +103,16 @@ async function processFile(filePath: string): Promise<TestResult> {
   console.log(`Processing: ${fileName} (${mimeType})`);
   console.log(`${"─".repeat(60)}`);
 
+  const provider = createProvider();
+  if (!provider) throw new Error("Could not create LLM provider (check env vars)");
+
   try {
     let output: unknown;
 
     if (mimeType === "text/plain") {
-      // Text files: skip Textract, go straight to Bedrock
       const text = readFileSync(filePath, "utf-8");
-      console.log("  → Text-only mode (no Textract)");
-      const result = await extractVoucherFields(text, {});
-      output = result;
+      output = await provider.extractFromText(text, "Extract voucher details.");
     } else {
-      // Image / PDF: full pipeline
       if (!BUCKET) {
         throw new Error("IMAGES_BUCKET env var required for image/PDF processing");
       }
@@ -119,7 +122,8 @@ async function processFile(filePath: string): Promise<TestResult> {
       console.log(`  → Uploaded to S3: ${tempKey}`);
 
       try {
-        output = await runExtractionPipeline({ s3Key: tempKey, mimeType });
+        const base64 = fileBuffer.toString("base64");
+        output = await provider.extractFromFile(base64, mimeType, "Extract voucher details.");
       } finally {
         await deleteTempFromS3(tempKey);
       }

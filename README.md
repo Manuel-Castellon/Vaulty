@@ -21,27 +21,104 @@ https://github.com/user-attachments/assets/cf6eb0b8-d958-49b1-befa-c3a98394de4a
 
 **🌐 [Try the Live Web App Here!](https://dxs2rcgjhblur.cloudfront.net/)**
 
-## 🏗️ Architecture Stack
+## 🏗️ Technical Architecture
 
-Vaulty handles complex state across web and mobile via a unified, serverless backend. 
+Vaulty handles complex state across web and mobile via a unified, serverless backend.
+
+### System Overview
+```mermaid
+graph TB
+    subgraph "Clients"
+        Mobile["📱 React Native (Expo)"]
+        Web["💻 React (Vite)"]
+    end
+
+    subgraph "AWS Cloud"
+        APIGW["⚡ API Gateway + Cognito Auth"]
+        subgraph "Lambda Functions"
+            CRUD["CRUD (List/Get/Update/Delete)"]
+            Extract["AI Extract & QR Detection"]
+            Search["Semantic AI Search"]
+            Notif["Expiry Check (Scheduled)"]
+        end
+        DDB[("DynamoDB - App Data")]
+        S3["🪣 S3 - Metadata & QR Crops"]
+        EB["⏰ EventBridge (Daily Sweeps)"]
+    end
+
+    subgraph "External"
+        Gemini["🧠 Gemini 2.5 Flash Lite"]
+        Expo["📬 Expo Push API"]
+    end
+
+    Mobile & Web --> APIGW
+    APIGW --> CRUD & Extract & Search
+    CRUD --> DDB
+    Extract --> Gemini
+    Extract --> S3
+    Search --> Gemini
+    Search --> DDB
+    EB --> Notif
+    Notif --> DDB
+    Notif --> Expo
+```
+
+### LLM Provider Abstraction
+The extraction pipeline is built on a provider-agnostic interface, enabling seamless switching between different AI models without modifying core handler logic.
 
 ```mermaid
 graph TD
-    Client[📱 Expo React Native / 💻 React Web] --> |Cognito Auth| API[⚡ AWS API Gateway]
-    API --> |Proxy| Lambda[☁️ AWS Lambda Backend Node 24]
-    Lambda --> |Store App Data| DB[( DynamoDB )]
-    Lambda --> |Store Image Scans| S3[🪣 AWS S3]
-    Lambda <--> |Extract Text & QR| AI[🧠 Gemini 2.5 AI]
+    Handler["Extract Handler"] --> |"Provider Interface"| Provider
+    Provider --> Gemini["Gemini 2.5 Flash (default)"]
+    Provider --> Bedrock["Bedrock Claude (optional toggle)"]
+    Provider -.-> Future["OpenAI / DeepSeek (pluggable)"]
+    Handler --> QR["QR Extraction (jsQR)"]
+```
+
+### CI/CD Pipeline
+Continuous integration ensures code quality and automated delivery to both AWS infrastructure and mobile targets.
+
+```mermaid
+graph LR
+    subgraph "On Push"
+        TC["TypeScript Core & Unit Tests"]
+    end
+
+    subgraph "On Merge to Main"
+        Deploy["SAM Deploy → AWS Cloud"]
+        WebDeploy["Build → S3 → CloudFront"]
+    end
+
+    subgraph "Manual Trigger"
+        EAS["EAS Build → Android APK"]
+    end
+
+    TC --> Deploy
+    TC --> WebDeploy
+    TC --> EAS
 ```
 
 ## 🚀 Key Engineering Decisions
 
-- **Full-Stack Monorepo:** Structured using NPM Workspaces. The `@coupon/shared` library enforces complete end-to-end type safety between the AI backend and all specific clients via TypeScript contracts.
-- **Serverless Scale & IaC:** Completely serverless infrastructure managed via AWS SAM (CloudFormation footprint). Provides infinite scalability while scaling to zero when unused.
-- **Automated CI/CD Pipelines:** Features a robust GitHub Actions pipeline that automatically runs `tsc` typechecks and subsequently executes a `sam deploy` to push infrastructure updates and bundle code directly to AWS upon every merge to `main`.
-- **Pragmatic AI Fallbacks:** Integrates the Gemini API for intelligent data extraction, but prioritizes UX by building robust manual-entry fallback paths, cooldowns, and rate limits to elegantly handle free-tier quotas and AI hallucinations.
-- **Cross-Platform Parity:** Ships both a React Native (Expo) app and a Vite React web app. Both frontends maintain UI parity and leverage the exact same API.
-- **Event-Driven Push Notifications:** Leverages Amazon EventBridge for daily sweeps that trigger expiration push notifications for upcoming DynamoDB TTLs via Expo's Push API.
+- **LLM Provider Abstraction:** A provider-agnostic interface that enables hot-swappable AI backends (Gemini, Bedrock, etc.) without altering handler logic or QR orchestration.
+- **Structured Observability:** Real-time JSON-structured logging via CloudWatch, tracking extraction outcomes, provider performance, and latency dimensions for queryable insights.
+- **Multi-Format Extraction:** A unified pipeline accepting images (JPEG, PNG, WebP), PDFs, and raw text across all platforms with native language script preservation.
+- **Graceful Degradation:** Intelligent quota management that triggers QR-only extraction and manual-entry paths during periods of high demand, ensuring a resilient user experience.
+- **Full-Stack Type Safety:** A unified NPM Workspaces monorepo where the `@coupon/shared` library enforces strict TypeScript contracts between the AI backend and all clients.
+- **Serverless Scale & IaC:** Infrastructure-as-Code (AWS SAM / CloudFormation) ensuring a reproducible, infinitely scalable stack with zero idle cost.
+- **Event-Driven Lifecycle:** Daily EventBridge schedules for DynamoDB TTL sweeps, providing proactive expiration alerts via the Expo Push API.
+
+## 📊 Observability & Insights
+
+Vaulty uses structured JSON logging in CloudWatch, allowing recruiters or engineers to run aggregate queries on system performance:
+
+**Example: Extraction Success Rate (Last 24h)**
+```sql
+fields @timestamp, event, outcome, provider, durationMs
+| filter event = "extract.completed" or event = "extract.failed"
+| stats count() as total, count_distinct(outcome) by outcome
+| sort total desc
+```
 
 ## 🛠️ Local Setup 
 

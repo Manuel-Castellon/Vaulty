@@ -1,23 +1,22 @@
 /**
  * POST /extract
  *
- * Primary path: Gemini multimodal — reads image/PDF directly, handles Hebrew natively.
- * Secondary path: Bedrock Claude Vision — enabled via BEDROCK_ENABLED=true env var
- *   (currently quota-limited; Textract is NOT used — confirmed broken for Hebrew).
+ * Uses the LLM provider abstraction layer for AI extraction.
+ * Default provider: Gemini 2.5 Flash Lite (free tier).
+ * Alternative: Bedrock Claude Vision (BEDROCK_ENABLED=true).
  *
  * QR detection runs in parallel via jsQR for image uploads.
  */
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { createHash } from "crypto";
 import { ok, badRequest, serverError, unauthorized } from "../../lib/response";
+import { log } from "../../lib/logger";
 import type { ExtractResponse, ExtractionResult, ExtractRequest, SourceScript } from "@coupon/shared";
-import { runExtractionPipeline } from "../../services/extractionPipeline";
+import { createProvider, ProviderQuotaError } from "../../services/llmProvider";
+import type { LLMExtractionProvider } from "../../services/llmProvider";
 import { extractQRFromImage } from "../../services/qrExtractionService";
 
-// ── Gemini path ──────────────────────────────────────────────────────────────
-
-const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// ── Shared extraction prompt ─────────────────────────────────────────────────
 
 const BASE_PROMPT = `RULE #1 - LANGUAGE PRESERVATION (NON-NEGOTIABLE)
 If the document is in Hebrew, Arabic, or any non-English language, every text field in your output MUST stay in the ORIGINAL language and ORIGINAL script.
@@ -87,28 +86,6 @@ const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "imag
 const QUOTA_COOLDOWN_FALLBACK_SECONDS = 30;
 const quotaCooldownByKey = new Map<string, number>();
 
-class GeminiQuotaError extends Error {
-  retryAfterSeconds?: number;
-  constructor(retryAfterSeconds?: number) {
-    super("gemini_quota_exhausted");
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
-}
-
-function parseRetryAfterSeconds(errorDetails: unknown): number | undefined {
-  if (!Array.isArray(errorDetails)) return undefined;
-  for (const detail of errorDetails) {
-    if (!detail || typeof detail !== "object") continue;
-    const maybeRetryDelay = (detail as { retryDelay?: unknown }).retryDelay;
-    if (typeof maybeRetryDelay !== "string") continue;
-    const match = maybeRetryDelay.match(/(\d+)/);
-    if (!match) continue;
-    const parsed = Number(match[1]);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return undefined;
-}
-
 function hashInputBody(body: ExtractRequest): string {
   const hash = createHash("sha1");
   if (body.data) hash.update(body.data);
@@ -147,20 +124,12 @@ function buildPrompt(extraInstruction?: string) {
   return extraInstruction ? `${BASE_PROMPT}\n\n${extraInstruction}` : BASE_PROMPT;
 }
 
-function parseGeminiJson(raw: string): ExtractionResult {
-  const cleaned = raw
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```\s*$/, "")
-    .trim();
-  return JSON.parse(cleaned);
-}
-
 function validateLanguagePreservation(extracted: ExtractionResult): boolean {
   const script = extracted.sourceScript;
   if (!script || script === "latin" || script === "other") return true;
-  const expectedPattern = SCRIPT_PATTERNS[script];
+  const expectedPattern = SCRIPT_PATTERNS[script as Exclude<SourceScript, "latin" | "other">];
   if (!expectedPattern) return true;
-  return TEXT_FIELDS.every((field) => {
+  return TEXT_FIELDS.every((field: keyof ExtractionResult) => {
     const value = extracted[field];
     if (typeof value !== "string" || value.trim().length === 0) return true;
     // Brand/store names are often Latin even in Hebrew/Arabic vouchers (e.g. WOLT).
@@ -169,51 +138,42 @@ function validateLanguagePreservation(extracted: ExtractionResult): boolean {
   });
 }
 
-async function callGemini(
-  apiKey: string,
-  body: ExtractRequest,
-  extraInstruction?: string
+/** Call the provider to extract (file or text), with language validation + retry. */
+async function callProviderWithRetry(
+  provider: LLMExtractionProvider,
+  body: ExtractRequest
 ): Promise<ExtractionResult> {
-  const prompt = buildPrompt(extraInstruction);
-  const parts =
+  const prompt = buildPrompt();
+  const extracted =
     body.data && body.mimeType
-      ? [
-          { inline_data: { mime_type: body.mimeType, data: body.data } },
-          { text: prompt },
-        ]
+      ? await provider.extractFromFile(body.data, body.mimeType, prompt)
       : body.text
-        ? [{ text: `${prompt}\n\nDocument text:\n${body.text}` }]
-        : null;
+        ? await provider.extractFromText(body.text, prompt)
+        : (() => { throw new Error("missing_input"); })();
 
-  if (!parts) throw new Error("missing_input");
-
-  const resp = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts }] }),
-  });
-
-  const gemini = (await resp.json()) as {
-    error?: { message: string; status?: string; details?: unknown };
-    candidates?: { content: { parts: { text: string }[] } }[];
-  };
-
-  if (!resp.ok || gemini.error) {
-    const failureClass =
-      resp.status === 429 || gemini.error?.status === "RESOURCE_EXHAUSTED" ? "quota" : "provider_error";
-    console.error("[extract][gemini_error]", { failureClass, statusCode: resp.status, error: gemini.error });
-    if (resp.status === 429 || gemini.error?.status === "RESOURCE_EXHAUSTED") {
-      throw new GeminiQuotaError(parseRetryAfterSeconds(gemini.error?.details));
-    }
-    throw new Error("gemini_error");
+  if (validateLanguagePreservation(extracted)) {
+    return extracted;
   }
 
-  const raw = gemini.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  return parseGeminiJson(raw);
+  const retryInstruction = `CRITICAL: Your previous response translated text to English. Retry using VERBATIM ${extracted.sourceScript ?? "source"} script text only.
+Previous invalid output:
+${JSON.stringify(extracted)}`;
+
+  const retryPrompt = buildPrompt(retryInstruction);
+  const retried =
+    body.data && body.mimeType
+      ? await provider.extractFromFile(body.data, body.mimeType, retryPrompt)
+      : await provider.extractFromText(body.text!, retryPrompt);
+
+  if (!validateLanguagePreservation(retried)) {
+    log("warn", "extract.language_validation_failed", { provider: provider.name });
+  }
+
+  return retried;
 }
 
-async function handleGemini(
-  apiKey: string,
+async function handleExtraction(
+  provider: LLMExtractionProvider,
   body: ExtractRequest,
   quotaKey: string
 ): Promise<ExtractResponse> {
@@ -223,19 +183,19 @@ async function handleGemini(
 
   // Run text extraction and QR detection in parallel for image uploads
   const [extractionResult, qrResult] = await Promise.allSettled([
-    callGemini(apiKey, body),
+    callProviderWithRetry(provider, body),
     imageBytes
       ? extractQRFromImage(imageBytes, qrKeyPrefix)
       : Promise.resolve({ qrImageS3Key: null, qrData: null }),
   ]);
 
   if (extractionResult.status === "rejected") {
-    if (extractionResult.reason instanceof GeminiQuotaError && qrResult.status === "fulfilled") {
+    if (extractionResult.reason instanceof ProviderQuotaError && qrResult.status === "fulfilled") {
       const qr = qrResult.value;
       if (qr.qrData || qr.qrImageS3Key) {
         storeQuotaCooldown(quotaKey, extractionResult.reason.retryAfterSeconds);
         return {
-          extraction: { ...(qr.qrData ? { code: qr.qrData } : {}) } as any,
+          extraction: { ...(qr.qrData ? { code: qr.qrData } : {}) } as ExtractionResult,
           qrImageS3Key: qr.qrImageS3Key ?? undefined,
           warnings: ["quota_exhausted"],
         };
@@ -247,31 +207,18 @@ async function handleGemini(
   let extracted = extractionResult.value;
   const qr = qrResult.status === "fulfilled" ? qrResult.value : { qrImageS3Key: null, qrData: null };
 
-  // If jsQR decoded the QR and Gemini didn't find a code, use jsQR's value
+  // If jsQR decoded the QR and the AI didn't find a code, use jsQR's value
   if (qr.qrData && !extracted.code) {
     extracted = { ...extracted, code: qr.qrData };
   }
 
-  if (validateLanguagePreservation(extracted)) {
-    return {
-      extraction: extracted,
-      qrImageS3Key: qr.qrImageS3Key ?? undefined,
-    };
-  }
-
-  const retryInstruction = `CRITICAL: Your previous response translated text to English. Retry using VERBATIM ${extracted.sourceScript ?? "source"} script text only.
-Previous invalid output:
-${JSON.stringify(extracted)}`;
-
-  const retried = await callGemini(apiKey, body, retryInstruction);
   const warnings: string[] = [];
-  if (!validateLanguagePreservation(retried)) {
-    console.warn("Language preservation validation failed after retry");
+  if (!validateLanguagePreservation(extracted)) {
     warnings.push("language_validation_failed");
   }
 
   return {
-    extraction: retried,
+    extraction: extracted,
     qrImageS3Key: qr.qrImageS3Key ?? undefined,
     warnings: warnings.length ? warnings : undefined,
   };
@@ -281,6 +228,7 @@ ${JSON.stringify(extracted)}`;
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (!event.requestContext?.authorizer?.claims?.sub) return unauthorized();
+  const startMs = Date.now();
 
   let body: ExtractRequest;
   try {
@@ -293,11 +241,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (!hasFile && !body.text) {
     return badRequest("Provide either data+mimeType, s3Key, or text");
   }
+
+  const inputType = body.text ? "text" : body.mimeType === "application/pdf" ? "pdf" : "image";
   const quotaKey = buildQuotaKey(event, body);
   const remainingCooldownSeconds = getRemainingCooldownSeconds(quotaKey, Date.now());
   if (remainingCooldownSeconds) {
-    console.error("[extract][quota_cooldown_short_circuit]", {
-      failureClass: "quota",
+    log("warn", "extract.quota_cooldown_short_circuit", {
+      outcome: "quota",
+      inputType,
       remainingCooldownSeconds,
     });
     return serverError(
@@ -305,53 +256,43 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     );
   }
 
-  // ── Bedrock path (Claude Vision, no Textract) ─────────────────────────────
-  if (process.env.BEDROCK_ENABLED === "true") {
-    try {
-      const result = await runExtractionPipeline({
-        data: body.data,
-        mimeType: body.mimeType,
-        s3Key: body.s3Key,
-        text: body.text,
-      });
-      return ok<ExtractResponse>(result);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[extract][bedrock_pipeline_error]", { failureClass: "provider_error", message: msg });
-      if (msg === "missing_input") return badRequest("Provide either data+mimeType, s3Key, or text");
-      return serverError("Extraction failed — try again");
-    }
-  }
+  const provider = createProvider();
+  if (!provider) return serverError("AI service not configured");
 
-  // ── Gemini path (default) ─────────────────────────────────────────────────
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return serverError("AI service not configured");
-
+  log("info", "extract.started", { provider: provider.name, inputType });
   try {
-    const result = await handleGemini(apiKey, body, quotaKey);
+    const result = await handleExtraction(provider, body, quotaKey);
+    log("info", "extract.completed", {
+      provider: provider.name,
+      inputType,
+      outcome: "success",
+      durationMs: Date.now() - startMs,
+      hasQr: Boolean(result.qrImageS3Key),
+    });
     return ok<ExtractResponse>(result);
   } catch (err) {
-    console.error("[extract][handler_error]", { failureClass: "unknown", error: err });
-    if (err instanceof GeminiQuotaError) {
+    const durationMs = Date.now() - startMs;
+    if (err instanceof ProviderQuotaError) {
       const cooldownSeconds = storeQuotaCooldown(quotaKey, err.retryAfterSeconds);
-      const retryIn =
-        ` Please try again in about ${cooldownSeconds} seconds.`;
+      log("warn", "extract.failed", { provider: provider.name, inputType, outcome: "quota", durationMs, cooldownSeconds });
       return serverError(
-        `AI scanning is temporarily unavailable.${retryIn} You can still enter the voucher details manually and try scanning again later.`
+        `AI scanning is temporarily unavailable. Please try again in about ${cooldownSeconds} seconds. You can still enter the voucher details manually and try scanning again later.`
       );
     }
     if (err instanceof TypeError && /fetch failed/i.test(err.message)) {
-      console.error("[extract][network_error]", { failureClass: "network", message: err.message });
+      log("error", "extract.failed", { provider: provider.name, inputType, outcome: "network", durationMs, message: err.message });
       return serverError(
         "AI scanning is temporarily unavailable. You can still enter the voucher details manually and try scanning again later."
       );
     }
     if (err instanceof Error && err.message === "gemini_error") {
-      console.error("[extract][provider_error]", { failureClass: "provider_error", message: err.message });
+      log("error", "extract.failed", { provider: provider.name, inputType, outcome: "provider_error", durationMs, message: err.message });
       return serverError("AI extraction failed — try again");
     }
     if (err instanceof SyntaxError) {
-      console.error("[extract][invalid_json]", { failureClass: "invalid_json", message: err.message });
+      log("error", "extract.failed", { provider: provider.name, inputType, outcome: "parse_error", durationMs, message: err.message });
+    } else {
+      log("error", "extract.failed", { provider: provider.name, inputType, outcome: "unknown", durationMs, error: String(err) });
     }
     return serverError("Failed to parse AI response");
   }

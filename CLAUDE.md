@@ -68,12 +68,13 @@ All API types are in `shared/src/types/api.ts`. Always update shared types befor
 ## Architecture Decisions
 
 - **Single DynamoDB table** — `userId` (HASH) + `id` (RANGE). Add GSIs if query patterns require it.
-- **AI provider abstraction** — Gemini Flash Lite is currently the only active full-extraction provider. Keep provider logic behind an interface so adding a future free-tier fallback remains clean.
+- **LLM Provider Abstraction** — The extraction pipeline follows a provider-agnostic interface (`LLMExtractionProvider`). `GeminiProvider` is the default; `BedrockClaudeProvider` is a code-only, safety-first backup. Adding new models requires zero changes to the core extraction logic.
+- **Structured Observability** — All backend AI operations output JSON-structured logs to CloudWatch using a custom `log()` helper. Standardized fields include `event`, `outcome`, `provider`, `inputType`, and `durationMs` for real-time performance analytics.
 - **SAM for infrastructure** — `packages/backend/template.yaml` is the source of truth for all AWS resources.
 - **Shared types** — `@coupon/shared` is the contract between backend and frontends. Never duplicate type definitions.
 - **Auth** — AWS Cognito. Client-side auth via `amazon-cognito-identity-js` in both web and mobile (`services/auth.ts`). Backend reads JWT from `Authorization` header; `event.requestContext.authorizer?.claims?.sub` is the userId. Env vars: `VITE_COGNITO_USER_POOL_ID` / `VITE_COGNITO_CLIENT_ID` (web), `EXPO_PUBLIC_COGNITO_USER_POOL_ID` / `EXPO_PUBLIC_COGNITO_CLIENT_ID` (mobile). Values come from SAM Outputs after deploy.
-- **Image uploads** — presigned S3 URL flow: client calls `GET /upload-url`, uploads directly to S3, then saves the returned `imageUrl` on the coupon.
-- **Platform parity** — web app and mobile app are interchangeable in features. Web-first during development; migrate to mobile as features stabilise.
+- **Image/PDF uploads** — unified mobile support via `expo-document-picker`. Clients read files as base64 (with 4MB ceiling for API Gateway limits) and send `data` + `mimeType` to the `/extract` endpoint.
+- **Platform parity** — web app and mobile app are interchangeable in features. Both support image/PDF uploads and AI extraction.
 
 ## MVP Scope (In)
 
@@ -125,19 +126,16 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - Web push notifications (post-MVP)
 - Multi-store gift card type (post-MVP)
 
-## Current Handoff (2026-04-09)
+## Current Handoff (2026-04-14) - High-ROI Enhancements Complete
 
-- Working tree is intentionally dirty with active MVP changes across backend, mobile, web, and shared. Do not reset or discard anything without Manuel's explicit instruction.
-- AI extraction currently uses Gemini 2.5 Flash Lite only. Quota exhaustion returns a manual-entry fallback message; alternative free-tier fallback providers are tracked in `fallback_ai_backlog.md`.
-## Current Handoff (2026-04-13) - MVP Critical Fixes Complete
- 
- - **Architecture Update:** Client-side `expo-barcode-scanner` and native QR decoding logic was completely removed due to deprecation crashes in Expo SDK 51. The fallback is now strictly a backend responsibility; if Gemini hits a quota limit, the backend node process parallel-runs `jsQR` on the image and safely returns a partial success `[qrCode]` payload alongside a `quota_exhausted` warning. This mathematically guarantees cross-platform parity for QR scanning across native Android, Desktop Web, and Mobile Web without relying on individual client-side camera APIs.
- - **Dependency Hardening:** The persistent instant-crash regression when navigating to `/add` on Android was chased down and resolved. A native mismatch between Expo 51's React Native engine and `@react-native-community/datetimepicker@9.1.0` was causing the native stack to crash. `datetimepicker` was successfully downgraded back to `8.0.1`, restoring the `+` FAB functionality.
- - **Auth:** Cognito forgot-password flows have been implemented and verified end-to-end on both web and mobile.
- - **Documentation:** Expanded the `MVP_GAP_CHECKLIST.md` to formally document post-MVP observability and LLM abstraction layers.
- 
- ### ⏳ Next Session Goal
- Manuel will physically verify the next AES-generated Android APK on-device. If the `+` FAB navigation functions correctly without jumping out to the launcher, the remaining priorities are: Notification control screens, Cloudwatch observation dashboard, and UI Polish.
+- **Mobile PDF Support:** The `+` flow now includes a "📄 File" button using `expo-document-picker`. Supports both PDF and images with a 4MB client-side limit to satisfy API Gateway payloads.
+- **LLM Abstraction Layer:** Entire extraction logic refactored into a `LLMExtractionProvider` interface. The `extract.ts` handler is now model-agnostic.
+- **Observability:** Integrated structured JSON logging for all AI events. CloudWatch Insights can now query success rates, provider latencies, and outcome distributions.
+- **Documentation:** README expanded with system-wide architecture, CI/CD pipelines, and LLM architecture diagrams for recruiter review.
+
+### ⏳ Next Session Goal
+The mobile application and backend extraction pipeline are now extremely robust. Next steps involve fine-tuning the notification control screens and finalizing the UI polish before the final recruiter showcase.
+
 
 ## Cross-Platform Conventions
 
