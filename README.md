@@ -108,6 +108,16 @@ graph LR
 - **Serverless Scale & IaC:** Infrastructure-as-Code (AWS SAM / CloudFormation) ensuring a reproducible, infinitely scalable stack with zero idle cost.
 - **Event-Driven Lifecycle:** Daily EventBridge schedules for DynamoDB TTL sweeps, providing proactive expiration alerts via the Expo Push API.
 
+## ⚖️ Tradeoffs & Limitations
+
+- **Cold Start Latency:** Using AWS Lambda for the backend ensures zero idle cost but introduces occasional sub-second cold starts. This was accepted in favor of cost-efficiency for a B2C application with variable traffic.
+- **DynamoDB Access Patterns:** The schema is optimized for lookup-by-user and expiry sweeps. While less flexible than SQL for complex joins, it offers consistent single-digit millisecond performance at scale.
+- **Cost Control:** 
+    - **LLM as Primary Driver:** AI extraction is the dominant cost. The architecture includes a "Fallback Mode" and quota-limiting logic to protect against bot-driven cost spikes.
+    - **Serverless Efficiency:** Lambda and DynamoDB (On-Demand) were chosen specifically to maintain a "Free Tier" friendly profile while handling bursty mobile usage.
+- **Gemini Quota Constraints:** Using the Flash Lite tier provides high speed and low cost, but includes rate limits. The system handles these gracefully by falling back to QR-only or manual entry paths.
+- **Throughput Assumptions:** The current architecture prioritizes per-request responsiveness over massive batch processing, fitting the "snap-and-save" mobile user flow.
+
 ## 📊 Observability & Insights
 
 Vaulty uses structured JSON logging in CloudWatch, allowing recruiters or engineers to run aggregate queries on system performance:
