@@ -34,8 +34,6 @@ Vaulty is fully functional across both web and mobile. Use the links below to te
 2. **Permissions**: You may need to "Allow installation from unknown sources" in your Android settings to install the build.
 3. **Login**: Use the same credentials across both platforms to see real-time sync in action.
 
-> [!NOTE]
-> **Why an APK?** To ensure the best "first-look" experience for recruiters and reviewers, we distribute a standalone binary via GitHub Releases. This avoids the need for local Expo setup or "Expo Go" while keeping the main repository lightweight.
 
 
 ## 🏗️ Technical Architecture
@@ -137,7 +135,7 @@ graph LR
 
 ## 📊 Observability & Insights
 
-Vaulty uses structured JSON logging in CloudWatch, allowing recruiters or engineers to run aggregate queries on system performance:
+Vaulty uses structured JSON logging in CloudWatch, allowing engineers to run aggregate queries on system performance:
 
 **Example: Extraction Success Rate (Last 24h)**
 ```sql

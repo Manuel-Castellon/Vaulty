@@ -132,12 +132,12 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - **Mobile PDF Support:** The `+` flow now includes a "📄 File" button using `expo-document-picker`. Supports both PDF and images with a 4MB client-side limit to satisfy API Gateway payloads.
 - **LLM Abstraction Layer:** Entire extraction logic refactored into a `LLMExtractionProvider` interface. The `extract.ts` handler is now model-agnostic.
 - **Observability:** Integrated structured JSON logging for all AI events. CloudWatch Insights can now query success rates, provider latencies, and outcome distributions.
-- **Documentation:** README expanded with system-wide architecture, CI/CD pipelines, and LLM architecture diagrams for recruiter review.
+- **Documentation:** README expanded with system-wide architecture, CI/CD pipelines, and LLM architecture diagrams for technical review.
 
 ### ⏳ Next Session Goal
 The mobile application and backend extraction pipeline are now extrêmement robust.
 - **Manual Verification**: User to verify the new "📄 File" button and PDF extraction on a real device once the latest EAS build completes.
-- **Next Features**: fine-tuning the notification control screens and finalizing the UI polish before the final recruiter showcase.
+- **Next Features**: fine-tuning the notification control screens and finalizing the UI polish before the final production showcase.
 
 
 ## Cross-Platform Conventions
