@@ -3,6 +3,7 @@
 > A full-stack, AI-powered coupon and voucher manager.
 
 [![Live Demo](https://img.shields.io/badge/Live_Web_App-Available-success?style=flat-square)](https://dxs2rcgjhblur.cloudfront.net/)
+[![Download APK](https://img.shields.io/badge/Android_APK-Latest-orange?style=flat-square&logo=android)](https://github.com/Manuel-Castellon/Vaulty/releases/latest)
 ![React Native](https://img.shields.io/badge/React_Native-0.74-blue?style=flat-square)
 ![React](https://img.shields.io/badge/React-18-blue?style=flat-square)
 ![AWS Serverless](https://img.shields.io/badge/AWS-Serverless-orange?style=flat-square)
@@ -19,7 +20,23 @@ https://github.com/user-attachments/assets/cf6eb0b8-d958-49b1-befa-c3a98394de4a
 
 *If the inline video does not play, [click here to view the demo](https://github.com/Manuel-Castellon/Vaulty/blob/main/docs/demo/Vaulty_Demo.mp4).*
 
-**🌐 [Try the Live Web App Here!](https://dxs2rcgjhblur.cloudfront.net/)**
+## 📲 Try it Out
+
+Vaulty is fully functional across both web and mobile. Use the links below to test the AI extraction and cross-platform sync.
+
+| Platform | Link | Status |
+| :--- | :--- | :--- |
+| **🌐 Web App** | [Try Vaulty in the Browser](https://dxs2rcgjhblur.cloudfront.net/) | Live Deployment |
+| **📱 Android** | [Download Latest APK](https://github.com/Manuel-Castellon/Vaulty/releases/latest) | Pre-release (MVP) |
+
+### 🛠️ Android Installation Notes
+1. **Download**: Grab the latest `.apk` from the [Releases](https://github.com/Manuel-Castellon/Vaulty/releases) page.
+2. **Permissions**: You may need to "Allow installation from unknown sources" in your Android settings to install the build.
+3. **Login**: Use the same credentials across both platforms to see real-time sync in action.
+
+> [!NOTE]
+> **Why an APK?** To ensure the best "first-look" experience for recruiters and reviewers, we distribute a standalone binary via GitHub Releases. This avoids the need for local Expo setup or "Expo Go" while keeping the main repository lightweight.
+
 
 ## 🏗️ Technical Architecture
 
