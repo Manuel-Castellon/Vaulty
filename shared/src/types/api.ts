@@ -79,6 +79,23 @@ export interface NotificationPreferences {
   enabled: boolean;
   /** How many days before expiry to send the notification (1–30) */
   daysBeforeExpiry: number;
+  /** Whether to receive a push notification when someone claims a coupon you shared */
+  notifyOnClaim?: boolean;
 }
 
 export type UpdateNotificationPreferencesRequest = Partial<NotificationPreferences>;
+
+/** Public view of a shared coupon — strips owner-specific and internal fields */
+export type SharedCouponView = Omit<
+  import("./coupon").Coupon,
+  "userId" | "qrImageS3Key" | "isActive" | "usageCount" | "amountUsed" | "extractionWarnings" | "shareToken"
+>;
+
+export interface ShareCouponResponse {
+  shareUrl: string;
+  shareToken: string;
+}
+
+export interface ClaimCouponResponse {
+  coupon: import("./coupon").Coupon;
+}

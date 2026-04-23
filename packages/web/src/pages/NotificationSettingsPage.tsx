@@ -72,6 +72,24 @@ export default function NotificationSettingsPage() {
             </div>
           </div>
 
+          {/* Notify on claim */}
+          <div className={styles.row} style={{ alignItems: "center" }}>
+            <span className={styles.rowLabel}>Sharing alerts</span>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.notifyOnClaim ?? true}
+                  onChange={(e) => setPrefs({ ...prefs, notifyOnClaim: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: "pointer" }}
+                />
+                <span style={{ fontSize: 14, color: "#333" }}>
+                  Notify me when someone claims my shared coupon
+                </span>
+              </label>
+            </div>
+          </div>
+
           {/* Days before expiry */}
           <div className={styles.row} style={{ alignItems: "center" }}>
             <span className={styles.rowLabel}>Alert days before</span>

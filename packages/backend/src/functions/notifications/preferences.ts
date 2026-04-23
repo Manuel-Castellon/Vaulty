@@ -9,6 +9,7 @@ const PREFS_ID = "NOTIFICATION_PREFS";
 const DEFAULT_PREFS: NotificationPreferences = {
   enabled: true,
   daysBeforeExpiry: 3,
+  notifyOnClaim: true,
 };
 
 export async function getPrefs(userId: string): Promise<NotificationPreferences> {
@@ -23,6 +24,7 @@ export async function getPrefs(userId: string): Promise<NotificationPreferences>
     return {
       enabled: result.Item.enabled ?? DEFAULT_PREFS.enabled,
       daysBeforeExpiry: result.Item.daysBeforeExpiry ?? DEFAULT_PREFS.daysBeforeExpiry,
+      notifyOnClaim: result.Item.notifyOnClaim ?? DEFAULT_PREFS.notifyOnClaim,
     };
   } catch {
     return { ...DEFAULT_PREFS };
@@ -54,8 +56,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       typeof body.daysBeforeExpiry === "number"
         ? Math.max(1, Math.min(30, Math.round(body.daysBeforeExpiry)))
         : current.daysBeforeExpiry;
+    const notifyOnClaim =
+      typeof body.notifyOnClaim === "boolean" ? body.notifyOnClaim : current.notifyOnClaim;
 
-    const updated: NotificationPreferences = { enabled, daysBeforeExpiry };
+    const updated: NotificationPreferences = { enabled, daysBeforeExpiry, notifyOnClaim };
 
     try {
       await ddb.send(

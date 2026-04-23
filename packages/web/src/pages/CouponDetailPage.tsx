@@ -40,6 +40,8 @@ export default function CouponDetailPage() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [showQrRaw, setShowQrRaw] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -66,6 +68,25 @@ export default function CouponDetailPage() {
       setCoupon(updated);
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!id) return;
+    setSharing(true);
+    try {
+      const { shareUrl: url } = await api.sharing.share(id);
+      setShareUrl(url);
+      if (navigator.share) {
+        await navigator.share({ title: coupon?.title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        alert("Share link copied to clipboard!");
+      }
+    } catch (err: any) {
+      if (err?.name !== "AbortError") alert(err.message ?? "Failed to generate share link");
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -279,6 +300,23 @@ export default function CouponDetailPage() {
         >
           {status === "archived" ? "✓ Archived" : "Archive"}
         </button>
+      </div>
+
+      {/* Share */}
+      <div style={{ marginBottom: 10 }}>
+        <button
+          className={styles.updateBtn}
+          onClick={handleShare}
+          disabled={sharing}
+          style={{ width: "100%", padding: "11px 16px", fontSize: 14 }}
+        >
+          {sharing ? "Generating link…" : "Share"}
+        </button>
+        {shareUrl && (
+          <p style={{ fontSize: 12, color: "#888", marginTop: 6, wordBreak: "break-all" }}>
+            {shareUrl}
+          </p>
+        )}
       </div>
 
       {/* Edit + Delete */}

@@ -92,6 +92,23 @@ export default function NotificationSettingsScreen() {
 
           <View style={styles.separator} />
 
+          {/* Notify on claim */}
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <Text style={styles.rowTitle}>Sharing alerts</Text>
+              <Text style={styles.rowSub}>
+                Notify me when someone claims my shared coupon
+              </Text>
+            </View>
+            <Switch
+              value={prefs.notifyOnClaim ?? true}
+              onValueChange={(val) => setPrefs({ ...prefs, notifyOnClaim: val })}
+              trackColor={{ true: "#007AFF" }}
+            />
+          </View>
+
+          <View style={styles.separator} />
+
           {/* Days before */}
           <View style={[styles.row, !prefs.enabled && styles.rowDisabled]}>
             <Text style={styles.rowTitle}>Alert days before expiry</Text>

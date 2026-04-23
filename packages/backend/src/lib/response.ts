@@ -39,3 +39,27 @@ export const unauthorized = (message = "Unauthorized") => ({
   headers: { "Content-Type": "application/json", ...CORS },
   body: JSON.stringify({ error: { code: "UNAUTHORIZED", message } }),
 });
+
+const PUBLIC_CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "GET,OPTIONS",
+};
+
+export const publicOk = <T>(body: T) => ({
+  statusCode: 200,
+  headers: { "Content-Type": "application/json", ...PUBLIC_CORS },
+  body: JSON.stringify(body),
+});
+
+export const publicNotFound = (message = "Not found") => ({
+  statusCode: 404,
+  headers: { "Content-Type": "application/json", ...PUBLIC_CORS },
+  body: JSON.stringify({ error: { code: "NOT_FOUND", message } }),
+});
+
+export const publicBadRequest = (message: string) => ({
+  statusCode: 400,
+  headers: { "Content-Type": "application/json", ...PUBLIC_CORS },
+  body: JSON.stringify({ error: { code: "BAD_REQUEST", message } }),
+});

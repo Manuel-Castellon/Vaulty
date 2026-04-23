@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Share,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import QRCode from "react-native-qrcode-svg";
@@ -46,6 +47,7 @@ export default function CouponDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [showQrRaw, setShowQrRaw] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -83,6 +85,20 @@ export default function CouponDetailScreen() {
       Alert.alert("Error", err.message);
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!id) return;
+    setSharing(true);
+    try {
+      const { shareUrl } = await api.sharing.share(id);
+      await Share.share({ message: shareUrl, url: shareUrl });
+    } catch (err: any) {
+      if (err?.message !== "User did not share")
+        Alert.alert("Error", err.message ?? "Failed to generate share link");
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -220,6 +236,15 @@ export default function CouponDetailScreen() {
         </View>
       )}
 
+      {/* Share */}
+      <TouchableOpacity
+        style={styles.shareBtn}
+        onPress={handleShare}
+        disabled={sharing}
+      >
+        <Text style={styles.shareBtnText}>{sharing ? "Generating link…" : "Share"}</Text>
+      </TouchableOpacity>
+
       {/* Actions — 2×2 compact grid */}
       <View style={styles.actionsGrid}>
         <TouchableOpacity
@@ -342,6 +367,12 @@ const styles = StyleSheet.create({
   actionBtnArchivedText: { color: "#666" },
   actionBtnDelete: { backgroundColor: "#fff0f0", borderColor: "#ffb3ae" },
   actionBtnDeleteText: { color: "#FF3B30" },
+
+  shareBtn: {
+    backgroundColor: "#007AFF", borderRadius: 10, paddingVertical: 12,
+    alignItems: "center", marginTop: 20, marginBottom: 8,
+  },
+  shareBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 
   btn: { flex: 1, padding: 14, borderRadius: 8, alignItems: "center" },
   saveBtn: { backgroundColor: "#007AFF", marginTop: 0 },

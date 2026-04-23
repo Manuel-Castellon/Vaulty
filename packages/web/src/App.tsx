@@ -12,6 +12,7 @@ import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotificationSettingsPage from "./pages/NotificationSettingsPage";
+import SharedCouponPreviewPage from "./pages/SharedCouponPreviewPage";
 import styles from "./app.module.css";
 
 export default function App() {
@@ -63,6 +64,7 @@ export default function App() {
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/shared/:shareToken" element={<SharedCouponPreviewPage />} />
 
           {/* Protected routes */}
           <Route path="/settings/notifications" element={<RequireAuth><NotificationSettingsPage /></RequireAuth>} />

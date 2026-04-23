@@ -31,6 +31,7 @@ export interface Coupon {
   qrImageS3Key?: string;          // S3 key for cropped QR code image from extraction
   qrImageUrl?: string;            // presigned GET URL for qrImageS3Key (computed at read time, not stored)
   extractionWarnings?: string[];  // warnings produced during AI/OCR extraction
+  shareToken?: string;            // unique token for shareable link (set on first share, cleared on revoke)
   createdAt: string;
   updatedAt: string;
 }

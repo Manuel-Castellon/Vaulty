@@ -32,17 +32,17 @@ describe("notification preferences handler", () => {
       const res = await handler(makeEvent({ method: "GET" }));
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toEqual({ enabled: true, daysBeforeExpiry: 3 });
+      expect(body).toEqual({ enabled: true, daysBeforeExpiry: 3, notifyOnClaim: true });
     });
 
     it("returns stored prefs when item exists", async () => {
       ddb.send.mockResolvedValue({
-        Item: { userId: "user-123", id: "NOTIFICATION_PREFS", enabled: false, daysBeforeExpiry: 7 },
+        Item: { userId: "user-123", id: "NOTIFICATION_PREFS", enabled: false, daysBeforeExpiry: 7, notifyOnClaim: false },
       });
       const res = await handler(makeEvent({ method: "GET" }));
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toEqual({ enabled: false, daysBeforeExpiry: 7 });
+      expect(body).toEqual({ enabled: false, daysBeforeExpiry: 7, notifyOnClaim: false });
     });
 
     it("returns 400 when userId is missing", async () => {
@@ -63,7 +63,7 @@ describe("notification preferences handler", () => {
       const res = await handler(makeEvent({ method: "PUT", body: { enabled: false } }));
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toEqual({ enabled: false, daysBeforeExpiry: 3 });
+      expect(body).toEqual({ enabled: false, daysBeforeExpiry: 3, notifyOnClaim: true });
     });
 
     it("clamps daysBeforeExpiry to 1–30", async () => {
@@ -108,13 +108,13 @@ describe("getPrefs helper", () => {
   it("returns defaults when DynamoDB throws", async () => {
     ddb.send.mockRejectedValue(new Error("DynamoDB error"));
     const prefs = await getPrefs("user-xyz");
-    expect(prefs).toEqual({ enabled: true, daysBeforeExpiry: 3 });
+    expect(prefs).toEqual({ enabled: true, daysBeforeExpiry: 3, notifyOnClaim: true });
   });
 
   it("returns defaults when item is missing", async () => {
     ddb.send.mockResolvedValue({ Item: undefined });
     const prefs = await getPrefs("user-xyz");
-    expect(prefs).toEqual({ enabled: true, daysBeforeExpiry: 3 });
+    expect(prefs).toEqual({ enabled: true, daysBeforeExpiry: 3, notifyOnClaim: true });
   });
 
   it("fills in defaults for missing fields in stored item", async () => {
@@ -122,6 +122,7 @@ describe("getPrefs helper", () => {
     const prefs = await getPrefs("user-xyz");
     expect(prefs.enabled).toBe(true); // default
     expect(prefs.daysBeforeExpiry).toBe(10);
+    expect(prefs.notifyOnClaim).toBe(true); // default
   });
 
   it("returns stored enabled=false correctly", async () => {
@@ -129,5 +130,34 @@ describe("getPrefs helper", () => {
     const prefs = await getPrefs("user-xyz");
     expect(prefs.enabled).toBe(false);
     expect(prefs.daysBeforeExpiry).toBe(7);
+  });
+
+  it("returns stored notifyOnClaim=false correctly", async () => {
+    ddb.send.mockResolvedValue({ Item: { enabled: true, daysBeforeExpiry: 3, notifyOnClaim: false } });
+    const prefs = await getPrefs("user-xyz");
+    expect(prefs.notifyOnClaim).toBe(false);
+  });
+});
+
+describe("PUT /notifications/preferences — notifyOnClaim", () => {
+  beforeEach(() => {
+    ddb.send.mockReset();
+  });
+
+  it("saves notifyOnClaim=false", async () => {
+    ddb.send
+      .mockResolvedValueOnce({ Item: { enabled: true, daysBeforeExpiry: 3, notifyOnClaim: true } })
+      .mockResolvedValueOnce({});
+
+    const makeEvent = (body) => ({
+      httpMethod: "PUT",
+      body: JSON.stringify(body),
+      requestContext: { authorizer: { claims: { sub: "user-123" } } },
+    });
+
+    const res = await handler(makeEvent({ notifyOnClaim: false }));
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.notifyOnClaim).toBe(false);
   });
 });

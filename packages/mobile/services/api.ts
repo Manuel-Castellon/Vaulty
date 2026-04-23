@@ -9,6 +9,9 @@ import type {
   RegisterTokenRequest,
   NotificationPreferences,
   UpdateNotificationPreferencesRequest,
+  SharedCouponView,
+  ShareCouponResponse,
+  ClaimCouponResponse,
 } from "@coupon/shared";
 import { normalizeExtractResponse } from "@coupon/shared";
 
@@ -82,5 +85,17 @@ export const api = {
         method: "PUT",
         body: JSON.stringify(prefs),
       }),
+  },
+  sharing: {
+    share: (id: string) => request<ShareCouponResponse>(`/coupons/${id}/share`, { method: "POST" }),
+    revoke: (id: string) => request<{ revoked: boolean }>(`/coupons/${id}/share`, { method: "DELETE" }),
+    getPreview: (shareToken: string): Promise<SharedCouponView> => {
+      return fetch(`${BASE_URL}/shared/${shareToken}`).then((r) => {
+        if (!r.ok) throw new Error("Share link not found or revoked");
+        return r.json();
+      });
+    },
+    claim: (shareToken: string) =>
+      request<ClaimCouponResponse>(`/coupons/claim/${shareToken}`, { method: "POST" }),
   },
 };
