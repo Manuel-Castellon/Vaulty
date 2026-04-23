@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getIdToken, initSecureStorage, signOut as cognitoSignOut } from "../services/auth";
+import { getIdToken, getCurrentUserInfo, initSecureStorage, signOut as cognitoSignOut } from "../services/auth";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
+  userEmail: string | null;
+  authProvider: "email" | "google" | null;
   loading: boolean;
   refreshAuth: () => Promise<void>;
   signOut: () => void;
@@ -10,6 +12,8 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue>({
   isAuthenticated: false,
+  userEmail: null,
+  authProvider: null,
   loading: true,
   refreshAuth: async () => {},
   signOut: () => {},
@@ -23,6 +27,8 @@ export function __resetStorageInitForTests() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [authProvider, setAuthProvider] = useState<"email" | "google" | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refreshAuth = async () => {
@@ -30,8 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await initSecureStorage();
       _storageInitialized = true;
     }
-    const token = await getIdToken();
+    const [token, info] = await Promise.all([getIdToken(), getCurrentUserInfo()]);
     setIsAuthenticated(!!token);
+    setUserEmail(info.email);
+    setAuthProvider(info.email ? info.provider : null);
   };
 
   useEffect(() => {
@@ -41,10 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = () => {
     cognitoSignOut();
     setIsAuthenticated(false);
+    setUserEmail(null);
+    setAuthProvider(null);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, loading, refreshAuth, signOut }}>
+    <AuthContext.Provider value={{ isAuthenticated, userEmail, authProvider, loading, refreshAuth, signOut }}>
       {children}
     </AuthContext.Provider>
   );

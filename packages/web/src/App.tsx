@@ -16,7 +16,7 @@ import SharedCouponPreviewPage from "./pages/SharedCouponPreviewPage";
 import styles from "./app.module.css";
 
 export default function App() {
-  const { isAuthenticated, loading, signOut } = useAuth();
+  const { isAuthenticated, loading, userEmail, authProvider, signOut } = useAuth();
 
   return (
     <div>
@@ -50,6 +50,11 @@ export default function App() {
               Notifications
             </NavLink>
           </div>
+          {userEmail && (
+            <span className={styles.userEmail}>
+              {userEmail}{authProvider === "google" ? " · Google" : ""}
+            </span>
+          )}
           <button className={styles.signOutBtn} onClick={signOut}>
             Sign out
           </button>

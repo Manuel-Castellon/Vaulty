@@ -47,8 +47,18 @@
   background: #f0f4ff;
 }
 
-.signOutBtn {
+.userEmail {
   margin-left: auto;
+  font-size: 12px;
+  color: #999;
+  margin-right: 12px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signOutBtn {
   background: none;
   border: 1px solid #eee;
   cursor: pointer;

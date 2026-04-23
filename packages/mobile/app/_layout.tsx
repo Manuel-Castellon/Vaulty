@@ -75,7 +75,7 @@ export default function RootLayout() {
 function RootLayoutInner() {
   const router = useRouter();
   const segments = useSegments();
-  const { isAuthenticated, loading, signOut } = useAuth();
+  const { isAuthenticated, loading, userEmail, authProvider, signOut } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated) registerForPushNotifications();
@@ -127,7 +127,16 @@ function RootLayoutInner() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{
-        title: "My Coupons",
+        headerTitle: () => (
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ fontSize: 17, fontWeight: "600", color: "#000" }}>My Coupons</Text>
+            {userEmail ? (
+              <Text style={{ fontSize: 11, color: "#999" }} numberOfLines={1}>
+                {userEmail}{authProvider === "google" ? " · Google" : ""}
+              </Text>
+            ) : null}
+          </View>
+        ),
         headerRight: () => (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <TouchableOpacity onPress={() => router.push("/settings/notifications")} style={styles.headerBtn}>

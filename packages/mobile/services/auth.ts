@@ -168,6 +168,24 @@ export function getIdToken(): Promise<string | null> {
   });
 }
 
+export interface UserInfo {
+  email: string | null;
+  provider: "email" | "google";
+}
+
+export async function getCurrentUserInfo(): Promise<UserInfo> {
+  const token = await getIdToken();
+  if (!token) return { email: null, provider: "email" };
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const identities = payload.identities as Array<{ providerName: string }> | undefined;
+    const provider = identities?.some((i) => i.providerName === "Google") ? "google" : "email";
+    return { email: payload.email ?? null, provider };
+  } catch {
+    return { email: null, provider: "email" };
+  }
+}
+
 export function getCurrentUserId(): Promise<string | null> {
   return new Promise((resolve) => {
     const user = pool.getCurrentUser();
