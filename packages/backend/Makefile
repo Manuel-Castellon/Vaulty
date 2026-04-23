@@ -32,3 +32,18 @@ build-ExtractFunction:
 
 build-SearchFunction:
 	cp $(DIST)/SearchFunction/search.js $(ARTIFACTS_DIR)/search.js
+
+build-SignUpNotificationFunction:
+	cp $(DIST)/SignUpNotificationFunction/signup-notification.js $(ARTIFACTS_DIR)/signup-notification.js
+
+build-MetricsDigestFunction:
+	cp $(DIST)/MetricsDigestFunction/metrics-digest.js $(ARTIFACTS_DIR)/metrics-digest.js
+
+build-ShareCouponFunction:
+	cp $(DIST)/ShareCouponFunction/share.js $(ARTIFACTS_DIR)/share.js
+
+build-SharedPreviewFunction:
+	cp $(DIST)/SharedPreviewFunction/shared-preview.js $(ARTIFACTS_DIR)/shared-preview.js
+
+build-ClaimCouponFunction:
+	cp $(DIST)/ClaimCouponFunction/claim.js $(ARTIFACTS_DIR)/claim.js

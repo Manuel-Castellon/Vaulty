@@ -7,7 +7,7 @@
     "deploy": "sam deploy --guided",
     "deploy:ci": "sam deploy",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
+    "test": "../../node_modules/.bin/jest",
     "test:live": "RUN_LIVE_GEMINI_TESTS=1 jest src/functions/ai/__tests__/extract.live.test.js --runInBand",
     "test:live:stability": "RUN_LIVE_GEMINI_TESTS=1 LIVE_REPEAT=3 jest src/functions/ai/__tests__/extract.live.test.js --runInBand",
     "test:vouchers": "npx ts-node --project tsconfig.json scripts/runVoucherTests.ts"
@@ -23,6 +23,9 @@
   },
   "devDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "@aws-sdk/client-ses": "^3.0.0",
+    "@aws-sdk/client-sns": "^3.0.0",
     "@coupon/shared": "*",
     "@types/aws-lambda": "^8.10.0",
     "@types/uuid": "^9.0.0",

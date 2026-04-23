@@ -17,6 +17,13 @@ const functions = [
   { name: "NotificationPreferencesFunction", entry: "src/functions/notifications/preferences.ts",      out: "preferences.js" },
   { name: "ExtractFunction",      entry: "src/functions/ai/extract.ts",               out: "extract.js" },
   { name: "SearchFunction",       entry: "src/functions/ai/search.ts",                out: "search.js" },
+  // Metrics
+  { name: "SignUpNotificationFunction", entry: "src/functions/metrics/signup-notification.ts", out: "signup-notification.js" },
+  { name: "MetricsDigestFunction",      entry: "src/functions/metrics/metrics-digest.ts",      out: "metrics-digest.js" },
+  // Sharing
+  { name: "ShareCouponFunction",   entry: "src/functions/sharing/share.ts",          out: "share.js" },
+  { name: "SharedPreviewFunction", entry: "src/functions/sharing/shared-preview.ts", out: "shared-preview.js" },
+  { name: "ClaimCouponFunction",   entry: "src/functions/sharing/claim.ts",          out: "claim.js" },
 ];
 
 // Functions that use jimp/jsqr need those packages bundled (they are NOT

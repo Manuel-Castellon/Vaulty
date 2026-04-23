@@ -17,6 +17,8 @@ Globals:
         BEDROCK_ENABLED: !Ref BedrockEnabled
         BEDROCK_MODEL_ID: !Ref BedrockModelId
         CORS_ORIGIN: !Ref WebAppUrl
+        SHARE_BASE_URL: !Ref ShareBaseUrl
+        STAGE: !Ref Stage
   Api:
     Auth:
       DefaultAuthorizer: CognitoAuthorizer
@@ -60,6 +62,14 @@ Parameters:
     Type: String
     Default: "http://localhost:5173"
     Description: Web app origin URL (used for OAuth callback)
+  ShareBaseUrl:
+    Type: String
+    Default: "http://localhost:5173"
+    Description: Base URL for shareable coupon links (usually same as WebAppUrl)
+  DeveloperEmail:
+    Type: String
+    Default: "imp0ster.manuel@gmail.com"
+    Description: Email address for sign-up alerts and metrics digest
 
 Conditions:
   HasGoogleProvider: !Not [!Equals [!Ref GoogleClientId, ""]]
@@ -77,14 +87,88 @@ Resources:
           AttributeType: S
         - AttributeName: id
           AttributeType: S
+        - AttributeName: shareToken
+          AttributeType: S
       KeySchema:
         - AttributeName: userId
           KeyType: HASH
         - AttributeName: id
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: shareToken-index
+          KeySchema:
+            - AttributeName: shareToken
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+
+  # ── Metrics (SNS + SES) ───────────────────────────────────────────────────
+  SignUpAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "vaulty-signup-alerts-${Stage}"
+
+  SignUpAlertSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SignUpAlertTopic
+      Protocol: email
+      Endpoint: !Ref DeveloperEmail
+
+  SignUpNotificationFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: signup-notification.handler
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt SignUpAlertTopic.TopicName
+      Environment:
+        Variables:
+          SIGNUP_TOPIC_ARN: !Ref SignUpAlertTopic
+
+  SignUpNotificationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt SignUpNotificationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt CognitoUserPool.Arn
+
+  MetricsDigestFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: metrics-digest.handler
+      Timeout: 60
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CouponsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - cognito-idp:ListUsers
+              Resource: !GetAtt CognitoUserPool.Arn
+      Environment:
+        Variables:
+          DEVELOPER_EMAIL: !Ref DeveloperEmail
+          SES_SENDER: !Ref DeveloperEmail
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 8 ? * MON,THU *)
+            Description: Usage metrics digest (Mon + Thu 8AM UTC)
+            Enabled: true
 
   # ── Auth (Cognito) ────────────────────────────────────────────────────────
   CognitoUserPool:
@@ -106,6 +190,8 @@ Resources:
         - Name: email
           Required: true
           Mutable: false
+      LambdaConfig:
+        PostConfirmation: !GetAtt SignUpNotificationFunction.Arn
 
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -387,6 +473,62 @@ Resources:
           Properties:
             Path: /upload-url
             Method: GET
+
+  # ── Sharing Lambdas ───────────────────────────────────────────────────────
+  ShareCouponFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: share.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        SharePost:
+          Type: Api
+          Properties:
+            Path: /coupons/{id}/share
+            Method: POST
+        ShareDelete:
+          Type: Api
+          Properties:
+            Path: /coupons/{id}/share
+            Method: DELETE
+
+  SharedPreviewFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: shared-preview.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /shared/{shareToken}
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  ClaimCouponFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      Handler: claim.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CouponsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /coupons/claim/{shareToken}
+            Method: POST
 
 Outputs:
   ApiUrl:

@@ -75,6 +75,8 @@ All API types are in `shared/src/types/api.ts`. Always update shared types befor
 - **Auth** — AWS Cognito. Client-side auth via `amazon-cognito-identity-js` in both web and mobile (`services/auth.ts`). Backend reads JWT from `Authorization` header; `event.requestContext.authorizer?.claims?.sub` is the userId. Env vars: `VITE_COGNITO_USER_POOL_ID` / `VITE_COGNITO_CLIENT_ID` (web), `EXPO_PUBLIC_COGNITO_USER_POOL_ID` / `EXPO_PUBLIC_COGNITO_CLIENT_ID` (mobile). Values come from SAM Outputs after deploy.
 - **Image/PDF uploads** — unified mobile support via `expo-document-picker`. Clients read files as base64 (with 4MB ceiling for API Gateway limits) and send `data` + `mimeType` to the `/extract` endpoint.
 - **Platform parity** — web app and mobile app are interchangeable in features. Both support image/PDF uploads and AI extraction.
+- **Sharing model** — claimed coupons are independent copies (no cross-user references). Sharer's `shareToken` is stored on the item; a sparse GSI (`shareToken-index`) enables public lookup without scanning the full table. Public endpoint uses `Auth: Authorizer: NONE` + `publicOk` helper (`Access-Control-Allow-Origin: *`).
+- **Developer metrics** — SNS for real-time alerts (no SES sandbox friction), SES for the formatted HTML digest. No CloudWatch custom metrics ($0.30/metric/month); DynamoDB + Cognito are queried on-demand at digest time.
 
 ## MVP Scope (In)
 
@@ -86,10 +88,14 @@ All API types are in `shared/src/types/api.ts`. Always update shared types befor
 - Manual usage tracking (amount used from total)
 - AWS Cognito auth (email/password)
 - Cross-platform sync (Android + web)
+- Coupon sharing via direct link (Phase 1 — copies, no image transfer)
+- Developer metrics: SNS sign-up alerts + SES usage digest (Mon/Thu)
 
 ## Out of Scope (Post-MVP)
 
-- Coupon sharing between users
+- Coupon sharing Phase 2: household/family shared library (only if data shows repeated sharing with same people)
+- Claimed coupons inheriting the sharer's image (S3 cross-namespace copy)
+- Universal deep links (vaulty:// → app) from web share preview
 - Browser extension
 - Retailer integrations or affiliate links
 - Coupon recommendations/discovery
@@ -108,36 +114,41 @@ Env vars for local dev live in `packages/web/.env` (not committed). Use `VITE_AP
 
 SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter. The `Stage` parameter only affects resource names (e.g. DynamoDB table `coupons-dev`).
 
-## MVP Status (as of 2026-04-09)
+## MVP Status (as of 2026-04-19)
 
 **Done:**
 - Auth (email/password + Google SSO), coupon CRUD, amount tracking
-- AI extraction (Gemini 2.5 Flash Lite) — photo/PDF/text → form auto-fill
+- AI extraction (Gemini 2.5 Flash Lite) — photo/PDF/text → form auto-fill, mobile PDF via `expo-document-picker`
 - AI natural language search — debounced, hides filters while active
 - Expiry push notifications — EventBridge daily scan → Expo Push API, deep-links to coupon on tap
 - Voucher support — itemType, faceValue/cost/eventDate/seatInfo fields
-- GitHub Actions CI/CD — typecheck + SAM deploy on every main push
-- Mobile auth parity — login, signup, confirm, Google SSO callback screens fully implemented
+- Coupon sharing — direct link (Phase 1): share token GSI, public preview endpoint, claim creates independent copy, sharer notified on claim
+- Developer metrics — SNS Cognito trigger (sign-up alerts) + SES scheduled digest (Mon/Thu 8AM UTC)
+- LLM provider abstraction (`LLMExtractionProvider` interface), structured CloudWatch logging
+- GitHub Actions CI/CD — typecheck + full test suite + SAM deploy on every main push
+- Mobile auth parity — login, signup, confirm, Google SSO callback screens
 - Cognito auth enforced at API Gateway level (DefaultAuthorizer)
-- AWS infrastructure deployed end-to-end
+- AWS infrastructure deployed end-to-end; Android APK distributed
 
-**Remaining:**
-- EAS / Android cloud build (EXPO_TOKEN needs to be configured in GitHub secrets)
-- Web push notifications (post-MVP)
+**Remaining / Post-MVP:**
+- Web push notifications (post-MVP; mobile push fully implemented)
 - Multi-store gift card type (post-MVP)
-- Manual Mobile Verification (on-device testing of new features)
+- Manual on-device smoke test after next EAS build (sharing + metrics features are new)
 
-## Current Handoff (2026-04-14) - High-ROI Enhancements Complete
+## Current Handoff (2026-04-19) — Sharing + Metrics Complete, Pending Push
 
-- **Mobile PDF Support:** The `+` flow now includes a "📄 File" button using `expo-document-picker`. Supports both PDF and images with a 4MB client-side limit to satisfy API Gateway payloads.
-- **LLM Abstraction Layer:** Entire extraction logic refactored into a `LLMExtractionProvider` interface. The `extract.ts` handler is now model-agnostic.
-- **Observability:** Integrated structured JSON logging for all AI events. CloudWatch Insights can now query success rates, provider latencies, and outcome distributions.
-- **Documentation:** README expanded with system-wide architecture, CI/CD pipelines, and LLM architecture diagrams for technical review.
+Changes are **fully implemented and tested locally but not yet pushed to git**. Manuel is holding back deliberately to gather user feedback before committing.
 
-### ⏳ Next Session Goal
-The mobile application and backend extraction pipeline are now extrêmement robust.
-- **Manual Verification**: User to verify the new "📄 File" button and PDF extraction on a real device once the latest EAS build completes.
-- **Next Features**: fine-tuning the notification control screens and finalizing the UI polish before the final production showcase.
+- **Coupon Sharing (Phase 1):** Share button on coupon detail (mobile + web) → native share sheet → recipient opens link → "Add to My Vaulty" claim. Backend: `share.ts`, `shared-preview.ts`, `claim.ts`. New GSI: `shareToken-index`.
+- **Claim notification:** Sharer receives push notification when coupon is claimed (opt-out toggle in notification settings).
+- **Developer Metrics:** `signup-notification.ts` (Cognito PostConfirmation → SNS) + `metrics-digest.ts` (EventBridge Mon/Thu → SES HTML digest). SES sender identity already verified.
+- **Tests:** 66 passing across 7 suites. New test files for all new handlers.
+- **CI fix:** `deploy.yml` now passes `ShareBaseUrl` parameter and runs full backend test suite (not just extract).
+
+### ⏳ After pushing
+1. Click the SNS subscription confirmation email that arrives post-deploy — required for sign-up alerts to work.
+2. DynamoDB GSI creation takes ~2 min; non-blocking.
+3. Trigger a new EAS build so mobile users get the Share button.
 
 
 ## Cross-Platform Conventions
@@ -210,3 +221,4 @@ Every AWS resource is named by the `Stage` SAM parameter. Deploying with `Stage=
 - Backend functions follow the pattern in `packages/backend/src/functions/coupons/`
 - Return shapes use helpers from `packages/backend/src/lib/response.ts`
 - No paid dependencies without discussion first
+- **Tests are mandatory for every feature.** For every new Lambda handler or shared utility, either verify that tests exist or create them in the corresponding `__tests__/` directory before marking the work done. Follow the pattern in `packages/backend/src/functions/coupons/__tests__/list.test.js`: `jest.mock("@aws-sdk/lib-dynamodb", ...)`, `jest.mock("../../../lib/dynamodb", ...)`, CommonJS `require` of the `.ts` handler. Tests for all new and changed handlers must pass before deploy.

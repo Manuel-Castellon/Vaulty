@@ -72,7 +72,8 @@
       "Bash(/home/manuel/couponproject/packages/backend/node_modules/.bin/jest)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('devDependencies',{}\\), indent=2\\)\\); print\\('scripts test:', d.get\\('scripts',{}\\).get\\('test',''\\)\\)\")",
       "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\('version:', p['version']\\); print\\('peerDeps:', json.dumps\\(p.get\\('peerDependencies', {}\\), indent=2\\)\\)\")",
-      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\('version:', p['version']\\)\")"
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\('version:', p['version']\\)\")",
+      "Bash(npx --no jest --version)"
     ]
   }
 }
