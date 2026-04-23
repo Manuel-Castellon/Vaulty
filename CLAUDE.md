@@ -183,6 +183,9 @@ Write a formal disclosure covering: which AI systems were used, how AI contribut
 
 ## Pre-Production Checklist (before public launch)
 
+### Known bugs (active)
+- **Cognito identity split on dual auth methods**: A user who registers with email/password and later signs in with Google (or vice versa) lands in two separate Cognito user records → two separate DynamoDB namespaces → no shared data. Root cause: Cognito does not auto-link provider identities unless account linking is explicitly configured. Fix: enable the Cognito `PreSignUp` trigger to call `adminLinkProviderForUser` when an existing email is detected, or enforce a single sign-in method per user. This is a data integrity issue — split accounts appear as new empty users to the backend.
+
 ### Security gaps — acceptable for MVP, fix before public launch
 - **Web tokens in localStorage**: `amazon-cognito-identity-js` and Google SSO `id_token` (`packages/web/src/services/auth.ts:123`) are stored in localStorage. Upgrading to httpOnly cookies requires a BFF (Backend for Frontend) architecture — significant rework. Low exploitability now (no XSS surface in React), but fix before scale.
 - **No Content-Security-Policy header**: API Gateway doesn't send CSP headers. Add via CloudFront response headers policy.
