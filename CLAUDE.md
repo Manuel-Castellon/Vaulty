@@ -114,7 +114,7 @@ Env vars for local dev live in `packages/web/.env` (not committed). Use `VITE_AP
 
 SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter. The `Stage` parameter only affects resource names (e.g. DynamoDB table `coupons-dev`).
 
-## MVP Status (as of 2026-04-19)
+## MVP Status (as of 2026-04-23)
 
 **Done:**
 - Auth (email/password + Google SSO), coupon CRUD, amount tracking
@@ -129,26 +129,30 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - Mobile auth parity — login, signup, confirm, Google SSO callback screens
 - Cognito auth enforced at API Gateway level (DefaultAuthorizer)
 - AWS infrastructure deployed end-to-end; Android APK distributed
+- Account identity display — signed-in email + provider visible in web nav and mobile header (diagnostic for auth identity bug)
 
 **Remaining / Post-MVP:**
 - Web push notifications (post-MVP; mobile push fully implemented)
 - Multi-store gift card type (post-MVP)
-- Manual on-device smoke test after next EAS build (sharing + metrics features are new)
+- Manual on-device smoke test after next EAS build (sharing + metrics + identity display are new)
+- Cognito identity linking investigation (see Known bugs)
 
-## Current Handoff (2026-04-19) — Sharing + Metrics Complete, Pending Push
+## Current Handoff (2026-04-23) — All pushed, deployed
 
-Changes are **fully implemented and tested locally but not yet pushed to git**. Manuel is holding back deliberately to gather user feedback before committing.
+Everything is committed and deployed. HEAD is `8f3316e`. CI passed on the last successful run.
 
-- **Coupon Sharing (Phase 1):** Share button on coupon detail (mobile + web) → native share sheet → recipient opens link → "Add to My Vaulty" claim. Backend: `share.ts`, `shared-preview.ts`, `claim.ts`. New GSI: `shareToken-index`.
-- **Claim notification:** Sharer receives push notification when coupon is claimed (opt-out toggle in notification settings).
-- **Developer Metrics:** `signup-notification.ts` (Cognito PostConfirmation → SNS) + `metrics-digest.ts` (EventBridge Mon/Thu → SES HTML digest). SES sender identity already verified.
-- **Tests:** 66 passing across 7 suites. New test files for all new handlers.
-- **CI fix:** `deploy.yml` now passes `ShareBaseUrl` parameter and runs full backend test suite (not just extract).
+**This session (2026-04-23):**
+- Pushed sharing + metrics (built in the prior session, held for feedback) — 3 commits
+- Fixed CloudFormation circular dependency: `CognitoUserPool` ↔ `SignUpNotificationFunction` via inherited `USER_POOL_ID` Global. Fixed by overriding to static `"none"` on `SignUpNotificationFunction`.
+- Fixed `metrics-digest.ts` typecheck: `userMetrics` spread keys (`total`/`newInPeriod`) didn't match `DigestMetrics` shape (`totalUsers`/`newUsersInPeriod`).
+- Updated README: system diagram, key decisions, observability section for sharing + metrics.
+- Added `getCurrentUserInfo()` to both auth services; wired `userEmail` + `authProvider` into both `AuthContext`s; web nav and mobile header now show the signed-in email and "· Google" if Google SSO.
+- Tracked identity-split bug (unconfirmed — likely wrong Google account selected; email display added to help users self-diagnose).
 
-### ⏳ After pushing
-1. Click the SNS subscription confirmation email that arrives post-deploy — required for sign-up alerts to work.
-2. DynamoDB GSI creation takes ~2 min; non-blocking.
-3. Trigger a new EAS build so mobile users get the Share button.
+### ⏳ Still needed (manual, post-deploy)
+1. **SNS subscription confirmation** — click the "AWS Notification - Subscription Confirmation" email at `imp0ster.manuel@gmail.com` if not done yet. Required for sign-up alerts.
+2. **EAS build** — trigger a new mobile build so users get the Share button, `/shared/[token]` route, and identity display.
+3. **Identity bug** — ask the affected user to check the email shown in their header to confirm whether it was a wrong-account-selected issue.
 
 
 ## Cross-Platform Conventions
