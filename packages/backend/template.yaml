@@ -130,6 +130,7 @@ Resources:
       Environment:
         Variables:
           SIGNUP_TOPIC_ARN: !Ref SignUpAlertTopic
+          USER_POOL_ID: "none"
 
   SignUpNotificationPermission:
     Type: AWS::Lambda::Permission
