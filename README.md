@@ -46,6 +46,7 @@ graph TB
     subgraph "Clients"
         Mobile["📱 React Native (Expo)"]
         Web["💻 React (Vite)"]
+        PublicWeb["🌐 Public Share Preview"]
     end
 
     subgraph "AWS Cloud"
@@ -55,27 +56,39 @@ graph TB
             Extract["AI Extract & QR Detection"]
             Search["Semantic AI Search"]
             Notif["Expiry Check (Scheduled)"]
+            Share["Sharing (Share/Preview/Claim)"]
+            Metrics["Metrics (SignUp Alert + Digest)"]
         end
-        DDB[("DynamoDB - App Data")]
-        S3["🪣 S3 - Metadata & QR Crops"]
-        EB["⏰ EventBridge (Daily Sweeps)"]
+        DDB[("DynamoDB\n+ shareToken GSI")]
+        S3["🪣 S3 - Images & QR Crops"]
+        EB["⏰ EventBridge (Daily + Mon/Thu)"]
+        SNS["📣 SNS - Sign-up Alerts"]
+        SES["✉️ SES - Metrics Digest"]
+        Cognito["🔐 Cognito"]
     end
 
     subgraph "External"
         Gemini["🧠 Gemini 2.5 Flash Lite"]
         Expo["📬 Expo Push API"]
+        Dev["👤 Developer Email"]
     end
 
     Mobile & Web --> APIGW
-    APIGW --> CRUD & Extract & Search
+    PublicWeb --> APIGW
+    APIGW --> CRUD & Extract & Search & Share
+    Cognito --> Metrics
     CRUD --> DDB
+    Share --> DDB
     Extract --> Gemini
     Extract --> S3
     Search --> Gemini
     Search --> DDB
-    EB --> Notif
+    EB --> Notif & Metrics
     Notif --> DDB
     Notif --> Expo
+    Share --> Expo
+    Metrics --> SNS & SES
+    SNS & SES --> Dev
 ```
 
 ### LLM Provider Abstraction
@@ -122,6 +135,8 @@ graph LR
 - **Full-Stack Type Safety:** A unified NPM Workspaces monorepo where the `@coupon/shared` library enforces strict TypeScript contracts between the AI backend and all clients.
 - **Serverless Scale & IaC:** Infrastructure-as-Code (AWS SAM / CloudFormation) ensuring a reproducible, infinitely scalable stack with zero idle cost.
 - **Event-Driven Lifecycle:** Daily EventBridge schedules for DynamoDB TTL sweeps, providing proactive expiration alerts via the Expo Push API.
+- **Coupon Sharing:** A sparse DynamoDB GSI on `shareToken` enables unauthenticated public preview lookups without full-table scans. Claimed coupons are independent copies—no cross-user references—keeping the data model simple at Phase 1 scale.
+- **Developer Metrics:** Zero-cost operational visibility via Cognito PostConfirmation → SNS (real-time sign-up alerts) and a bi-weekly EventBridge → SES HTML digest covering user and coupon growth. No CloudWatch custom metrics ($0.30/metric/month).
 
 ## ⚖️ Tradeoffs & Limitations
 
@@ -135,7 +150,11 @@ graph LR
 
 ## 📊 Observability & Insights
 
-Vaulty uses structured JSON logging in CloudWatch, allowing engineers to run aggregate queries on system performance:
+Vaulty has two tiers of observability: real-time structured logs for system health, and a lightweight developer metrics pipeline for business-level tracking.
+
+### Structured CloudWatch Logs
+
+All Lambda functions emit JSON-structured events queryable via CloudWatch Insights:
 
 **Example: Extraction Success Rate (Last 24h)**
 ```sql
@@ -144,6 +163,13 @@ fields @timestamp, event, outcome, provider, durationMs
 | stats count() as total, count_distinct(outcome) by outcome
 | sort total desc
 ```
+
+### Developer Metrics Pipeline
+
+Two lightweight mechanisms surface business-level data without CloudWatch custom metric costs:
+
+- **Sign-up Alerts:** Cognito PostConfirmation → SNS → email. Fires within seconds of each verified registration.
+- **Bi-weekly Digest:** EventBridge (Mon + Thu 8AM UTC) → Lambda → SES HTML email. Reports total users, new users, total coupons, and breakdowns by category, status, and item type—all queried live from DynamoDB and Cognito at send time.
 
 ## 🛠️ Local Setup 
 
