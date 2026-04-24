@@ -111,13 +111,6 @@ Resources:
     Properties:
       TopicName: !Sub "vaulty-signup-alerts-${Stage}"
 
-  SignUpAlertSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !Ref SignUpAlertTopic
-      Protocol: email
-      Endpoint: !Ref DeveloperEmail
-
   SignUpNotificationFunction:
     Type: AWS::Serverless::Function
     Metadata:

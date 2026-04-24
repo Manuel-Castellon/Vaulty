@@ -2,15 +2,17 @@ import React from "react";
 import { renderHook, act } from "@testing-library/react-native";
 import { AuthProvider, useAuth, __resetStorageInitForTests } from "../context/AuthContext";
 
-// Mock getIdToken, signOut, and initSecureStorage from auth service
+// Mock getIdToken, signOut, initSecureStorage, and getCurrentUserInfo from auth service
 const mockGetIdToken = jest.fn();
 const mockSignOut = jest.fn();
 const mockInitSecureStorage = jest.fn().mockResolvedValue(undefined);
+const mockGetCurrentUserInfo = jest.fn().mockResolvedValue({ email: null, provider: "email" as const });
 
 jest.mock("../services/auth", () => ({
   getIdToken: (...args: unknown[]) => mockGetIdToken(...args),
   signOut: (...args: unknown[]) => mockSignOut(...args),
   initSecureStorage: (...args: unknown[]) => mockInitSecureStorage(...args),
+  getCurrentUserInfo: (...args: unknown[]) => mockGetCurrentUserInfo(...args),
 }));
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -37,6 +39,7 @@ describe("AuthContext", () => {
 
   it("becomes authenticated when a token exists on mount", async () => {
     mockGetIdToken.mockResolvedValue("id-token-xyz");
+    mockGetCurrentUserInfo.mockResolvedValue({ email: "user@example.com", provider: "email" as const });
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {});
@@ -47,6 +50,9 @@ describe("AuthContext", () => {
 
   it("refreshAuth transitions isAuthenticated false → true when token becomes available", async () => {
     mockGetIdToken.mockResolvedValueOnce(null).mockResolvedValueOnce("new-token");
+    mockGetCurrentUserInfo
+      .mockResolvedValueOnce({ email: null, provider: "email" as const })
+      .mockResolvedValueOnce({ email: "user@example.com", provider: "email" as const });
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {});
@@ -60,6 +66,7 @@ describe("AuthContext", () => {
 
   it("signOut transitions isAuthenticated true → false", async () => {
     mockGetIdToken.mockResolvedValue("id-token-xyz");
+    mockGetCurrentUserInfo.mockResolvedValue({ email: "user@example.com", provider: "email" as const });
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {});
