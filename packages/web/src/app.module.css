@@ -84,14 +84,38 @@
 
 @media (max-width: 600px) {
   .nav {
-    padding: 0 16px;
+    padding: 8px 16px;
+    height: auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .logo {
+    margin-right: 0;
+    order: 1;
+  }
+
+  .navLinks {
+    flex: none;
+    width: 100%;
+    order: 3;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 6px;
+  }
+
+  .userEmail {
+    order: 2;
+    flex: 1;
+    text-align: right;
+    max-width: none;
+    padding-right: 8px;
+  }
+
+  .signOutBtn {
+    order: 2;
   }
 
   .main {
     padding: 20px 16px;
-  }
-
-  .logo {
-    margin-right: 16px;
   }
 }

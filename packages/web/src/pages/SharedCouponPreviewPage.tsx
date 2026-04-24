@@ -20,6 +20,8 @@ function formatValue(c: SharedCouponView): string | null {
   return null;
 }
 
+const isAndroid = /Android/i.test(navigator.userAgent);
+
 export default function SharedCouponPreviewPage() {
   const { shareToken } = useParams<{ shareToken: string }>();
   const navigate = useNavigate();
@@ -73,10 +75,18 @@ export default function SharedCouponPreviewPage() {
 
   return (
     <div className={styles.page}>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, background: "#f0f4ff", color: "#007aff", fontWeight: 700, padding: "4px 10px", borderRadius: 20 }}>
           Shared with you
         </span>
+        {isAndroid && (
+          <a
+            href={`vaulty://shared/${shareToken}`}
+            style={{ fontSize: 12, background: "#007aff", color: "#fff", fontWeight: 700, padding: "4px 10px", borderRadius: 20, textDecoration: "none" }}
+          >
+            Open in Vaulty App
+          </a>
+        )}
       </div>
 
       {/* Hero card */}
