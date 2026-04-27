@@ -27,7 +27,7 @@ Vaulty is fully functional across both web and mobile. Use the links below to te
 | Platform | Link | Status |
 | :--- | :--- | :--- |
 | **🌐 Web App** | [Try Vaulty in the Browser](https://dxs2rcgjhblur.cloudfront.net/) | Live Deployment |
-| **📱 Android** | [Download Latest APK](https://github.com/Manuel-Castellon/Vaulty/releases/latest) | Pre-release (MVP) |
+| **📱 Android** | [Download Latest APK](https://github.com/Manuel-Castellon/Vaulty/releases/latest) | v1.0.0 (MVP) |
 
 ### 🛠️ Android Installation Notes
 1. **Download**: Grab the latest `.apk` from the [Releases](https://github.com/Manuel-Castellon/Vaulty/releases) page.
