@@ -149,10 +149,10 @@ Everything is committed and deployed. HEAD is `8f3316e`. CI passed on the last s
 - Added `getCurrentUserInfo()` to both auth services; wired `userEmail` + `authProvider` into both `AuthContext`s; web nav and mobile header now show the signed-in email and "· Google" if Google SSO.
 - Tracked identity-split bug (unconfirmed — likely wrong Google account selected; email display added to help users self-diagnose).
 
-### ⏳ Still needed (manual, post-deploy)
-1. **SNS subscription confirmation** — click the "AWS Notification - Subscription Confirmation" email at `imp0ster.manuel@gmail.com` if not done yet. Required for sign-up alerts.
-2. **EAS build** — trigger a new mobile build so users get the Share button, `/shared/[token]` route, and identity display.
-3. **Identity bug** — ask the affected user to check the email shown in their header to confirm whether it was a wrong-account-selected issue.
+### ✅ Post-deploy tasks (2026-04-27)
+1. **SNS subscription confirmation** — ✅ done; awaiting first digest receipt
+2. **EAS build** — ✅ done; mobile build with share + `/shared/[token]` + identity display live
+3. **Identity bug** — ✅ verified; user can't return to previous account (deprioritize; not critical for MVP)
 
 
 ## Cross-Platform Conventions
@@ -177,7 +177,17 @@ AI cannot resolve brand→store relationships without internet search or a knowl
 3. Store alias / correction feedback mechanism
 
 ### Multi-store gift card (BuyMe, Bit, etc.)
-Current `itemType: "coupon" | "voucher"` does not cleanly model multi-store gift cards. Post-MVP: add `itemType: "giftcard"` with fields `cardNumber`, `pin`, `balance`, `acceptedAt?: string[]`. Do NOT repurpose `code` for card numbers.
+Current `itemType: "coupon" | "voucher"` does not cleanly model multi-store gift cards. Post-MVP: add `itemType: "giftcard"` with fields:
+- `cardNumber: string` — the full card number
+- `cvv?: string` — security code (user feedback: CVV field requested as separate field, not in notes)
+- `pin?: string` — PIN
+- `balance?: number` — remaining balance
+- `acceptedAt?: string[]` — list of store names (or IDs if a store DB is added)
+- `acceptedAtUrl?: string` — link to issuer's official store locator for multi-store cards (BuyMe, Golden Token, etc.)
+
+Do NOT repurpose `code` for card numbers.
+
+**Store discovery (Phase 1, user feedback 2026-04-27):** Hardcode recognition for known Israeli multi-store cards (Dreams Card, Golden Token / תו הזהב, BuyMe / בייי מי) with links to their official store locators to reduce manual entry friction. Phase 2 (optional): crawl/sync store lists.
 
 ### Web/browser push notifications
 Web push requires Web Push API + service workers + VAPID keys — significant complexity. Post-MVP. Mobile push is fully implemented.
