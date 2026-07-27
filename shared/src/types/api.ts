@@ -70,7 +70,13 @@ export interface ExtractRequest {
   mimeType?: string;
   /** Raw text to extract from (email paste, etc.) */
   text?: string;
-  /** S3 key if the file was already uploaded via presigned URL */
+  /**
+   * S3 key if the file was already uploaded via presigned URL.
+   *
+   * Reserved for a future fetch-from-S3 extraction path (intended for files too
+   * large to inline through API Gateway). Not implemented — `/extract` currently
+   * rejects requests that supply only `s3Key`.
+   */
   s3Key?: string;
 }
 

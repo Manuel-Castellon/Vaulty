@@ -49,22 +49,28 @@ graph TB
         PublicWeb["🌐 Public Share Preview"]
     end
 
+    subgraph "Web Hosting"
+        CF["☁️ CloudFront + private S3 (OAC)"]
+    end
+
     subgraph "AWS Cloud"
-        APIGW["⚡ API Gateway + Cognito Auth"]
+        APIGW["⚡ API Gateway (Cognito default authorizer)"]
         subgraph "Lambda Functions"
-            CRUD["CRUD (List/Get/Update/Delete)"]
-            Extract["AI Extract & QR Detection"]
-            Search["Semantic AI Search"]
+            CRUD["Coupon CRUD (Create/List/Get/Update/Delete)"]
+            Upload["Presigned Upload URL"]
+            Extract["AI Extract + QR Detection"]
+            Search["AI Natural-Language Search"]
+            Prefs["Push Token + Notification Prefs"]
             Notif["Expiry Check (Scheduled)"]
             Share["Sharing (Share/Preview/Claim)"]
             Metrics["Metrics (SignUp Alert + Digest)"]
         end
-        DDB[("DynamoDB\n+ shareToken GSI")]
-        S3["🪣 S3 - Images & QR Crops"]
+        DDB[("DynamoDB - coupons table\n+ shareToken-index GSI")]
+        S3["🪣 S3 - Coupon Images and QR Crops"]
         EB["⏰ EventBridge (Daily + Mon/Thu)"]
         SNS["📣 SNS - Sign-up Alerts"]
         SES["✉️ SES - Metrics Digest"]
-        Cognito["🔐 Cognito"]
+        Cognito["🔐 Cognito User Pool"]
     end
 
     subgraph "External"
@@ -73,12 +79,15 @@ graph TB
         Dev["👤 Developer Email"]
     end
 
+    CF --> Web & PublicWeb
     Mobile & Web --> APIGW
-    PublicWeb --> APIGW
-    APIGW --> CRUD & Extract & Search & Share
-    Cognito --> Metrics
+    PublicWeb -->|"unauthenticated share preview"| APIGW
+    APIGW --> CRUD & Upload & Extract & Search & Prefs & Share
+    Cognito -->|"PostConfirmation trigger"| Metrics
     CRUD --> DDB
+    Prefs --> DDB
     Share --> DDB
+    Upload --> S3
     Extract --> Gemini
     Extract --> S3
     Search --> Gemini
@@ -87,61 +96,102 @@ graph TB
     Notif --> DDB
     Notif --> Expo
     Share --> Expo
+    Metrics --> DDB & Cognito
     Metrics --> SNS & SES
     SNS & SES --> Dev
 ```
 
+The backend stack (`packages/backend/template.yaml`) and the web hosting stack (`packages/web/infra/hosting.yaml`) are two separate CloudFormation stacks. The web bundle is served from a private S3 bucket fronted by CloudFront via Origin Access Control; the SPA talks to API Gateway directly.
+
+### API Surface
+
+Every route is authenticated by the API Gateway Cognito default authorizer except the public share preview, which overrides it with `Authorizer: NONE`. Handlers read the caller from `event.requestContext.authorizer.claims.sub`.
+
+| Method | Path | Lambda | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/coupons` | `list` | List the caller's items |
+| `POST` | `/coupons` | `create` | Create an item |
+| `GET` | `/coupons/{id}` | `get` | Fetch one item |
+| `PUT` | `/coupons/{id}` | `update` | Update an item (incl. usage tracking) |
+| `DELETE` | `/coupons/{id}` | `delete` | Delete an item |
+| `POST` | `/extract` | `extract` | AI extraction from image, PDF, or text |
+| `POST` | `/search` | `search` | Natural-language search over the caller's items |
+| `GET` | `/upload-url` | `presigned-url` | Presigned S3 PUT URL for a coupon image |
+| `POST` | `/push-token` | `register-token` | Register an Expo push token |
+| `GET` `PUT` | `/notifications/preferences` | `preferences` | Read/write expiry-alert preferences |
+| `POST` `DELETE` | `/coupons/{id}/share` | `share` | Mint or revoke a share token |
+| `GET` | `/shared/{shareToken}` | `shared-preview` | **Public**: preview a shared item |
+| `POST` | `/coupons/claim/{shareToken}` | `claim` | Claim a shared item as an independent copy |
+
+Three functions are not fronted by API Gateway: `expiry-check` (EventBridge, `rate(1 day)`), `metrics-digest` (EventBridge, `cron(0 8 ? * MON,THU *)`), and `signup-notification` (Cognito PostConfirmation trigger).
+
+### Single-Table Layout
+
+One DynamoDB table (`coupons-{stage}`) holds everything, keyed by `userId` (HASH) + `id` (RANGE). Coupons use a UUID as the sort key; per-user settings reuse the same partition with reserved sort keys (`PUSH_TOKEN` and `NOTIFICATION_PREFS`), so a user's data is one partition and needs no second table. The scheduled expiry scan filters those reserved ids out explicitly. TTL is enabled on a `ttl` attribute at the table level, but no handler currently writes it.
+
 ### LLM Provider Abstraction
-The extraction pipeline is built on a provider-agnostic interface, enabling seamless switching between different AI models without modifying core handler logic.
+The extraction pipeline is built on a provider-agnostic interface (`LLMExtractionProvider`), enabling switching between AI models without modifying core handler logic. `createProvider()` picks the implementation from environment configuration at invocation time.
 
 ```mermaid
 graph TD
-    Handler["Extract Handler"] --> |"Provider Interface"| Provider
-    Provider --> Gemini["Gemini 2.5 Flash (default)"]
-    Provider --> Bedrock["Bedrock Claude (optional toggle)"]
-    Provider -.-> Future["OpenAI / DeepSeek (pluggable)"]
-    Handler --> QR["QR Extraction (jsQR)"]
+    Handler["Extract Handler (POST /extract)"] --> |"LLMExtractionProvider"| Provider["createProvider()"]
+    Provider --> Gemini["GeminiProvider: Gemini 2.5 Flash Lite (default)"]
+    Provider --> Bedrock["BedrockClaudeProvider (BEDROCK_ENABLED=true)"]
+    Handler --> QR["QR Extraction (jsQR decode + jimp crop → S3)"]
 ```
 
+For image uploads, the LLM call and QR detection run concurrently via `Promise.allSettled`. If jsQR decodes a value the model missed, it fills in the `code` field; if the provider hits its quota but QR detection succeeded, the request still returns the QR result with a `quota_exhausted` warning instead of failing outright.
+
+The `/search` handler calls Gemini directly rather than through this interface; it is a separate, simpler path with no file or QR handling.
+
 ### CI/CD Pipeline
-Continuous integration ensures code quality and automated delivery to both AWS infrastructure and mobile targets.
+Four GitHub Actions workflows cover the monorepo. Typechecks and tests gate every deploy; the two deploy paths (backend and web) fire only on `main`, and the Android build is manual.
 
 ```mermaid
 graph LR
-    subgraph "On Push"
-        TC["TypeScript Core & Unit Tests"]
+    subgraph "deploy.yml: every push and PR"
+        TC["Typecheck + test: shared, backend, web, mobile"]
+        Deploy["SAM build + deploy → AWS (main only)"]
     end
 
-    subgraph "On Merge to Main"
-        Deploy["SAM Deploy → AWS Cloud"]
-        WebDeploy["Build → S3 → CloudFront"]
+    subgraph "web.yml: push to main (web/shared paths)"
+        WebTC["Typecheck web + build"]
+        WebDeploy["S3 sync → CloudFront invalidation"]
     end
 
-    subgraph "Manual Trigger"
-        EAS["EAS Build → Android APK"]
+    subgraph "mobile.yml: push, PR, or manual"
+        MobTC["Typecheck + Jest (mobile)"]
+        Bundle["Prebuild + expo export (Metro/codegen check)"]
+        EAS["EAS Android preview build (manual dispatch only)"]
+    end
+
+    subgraph "backend.yml: push and PR (backend/shared paths)"
+        BeTC["Typecheck + Jest (backend)"]
     end
 
     TC --> Deploy
-    TC --> WebDeploy
-    TC --> EAS
+    WebTC --> WebDeploy
+    MobTC --> Bundle --> EAS
 ```
+
+All jobs run on Node 24, matching the `nodejs24.x` Lambda runtime.
 
 ## 🚀 Key Engineering Decisions
 
-- **LLM Provider Abstraction:** A provider-agnostic interface that enables hot-swappable AI backends (Gemini, Bedrock, etc.) without altering handler logic or QR orchestration.
-- **Structured Observability:** Real-time JSON-structured logging via CloudWatch, tracking extraction outcomes, provider performance, and latency dimensions for queryable insights.
-- **Multi-Format Extraction:** A unified pipeline accepting images (JPEG, PNG, WebP), PDFs, and raw text across all platforms with native language script preservation.
-- **Graceful Degradation:** Intelligent quota management that triggers QR-only extraction and manual-entry paths during periods of high demand, ensuring a resilient user experience.
+- **LLM Provider Abstraction:** A provider-agnostic interface that enables hot-swappable AI backends (Gemini, Bedrock) without altering handler logic or QR orchestration.
+- **Structured Observability:** The extraction pipeline emits JSON-structured CloudWatch events through a shared `log()` helper, tracking outcome, provider, input type, and duration for queryable insights. Other handlers use plain `console` logging.
+- **Multi-Format Extraction:** A unified pipeline accepting images (JPEG, PNG, WebP), PDFs, and raw text across both platforms, with source-language and script preservation enforced by a validation-and-retry pass on the model output.
+- **Graceful Degradation:** Quota management that falls back to QR-only extraction and manual-entry paths when the provider rate-limits, with a per-user, per-input cooldown so repeat submissions short-circuit instead of burning quota.
 - **Full-Stack Type Safety:** A unified NPM Workspaces monorepo where the `@coupon/shared` library enforces strict TypeScript contracts between the AI backend and all clients.
-- **Serverless Scale & IaC:** Infrastructure-as-Code (AWS SAM / CloudFormation) ensuring a reproducible, infinitely scalable stack with zero idle cost.
-- **Event-Driven Lifecycle:** Daily EventBridge schedules for DynamoDB TTL sweeps, providing proactive expiration alerts via the Expo Push API.
+- **Serverless Scale & IaC:** Infrastructure-as-Code (AWS SAM / CloudFormation) ensuring a reproducible, horizontally scalable stack with zero idle cost.
+- **Event-Driven Lifecycle:** A daily EventBridge schedule scans DynamoDB for upcoming expirations and sends proactive alerts via the Expo Push API, honouring each user's stored notification preferences (on/off, days-before-expiry).
 - **Coupon Sharing:** A sparse DynamoDB GSI on `shareToken` enables unauthenticated public preview lookups without full-table scans. Claimed coupons are independent copies—no cross-user references—keeping the data model simple at Phase 1 scale.
-- **Developer Metrics:** Zero-cost operational visibility via Cognito PostConfirmation → SNS (real-time sign-up alerts) and a bi-weekly EventBridge → SES HTML digest covering user and coupon growth. No CloudWatch custom metrics ($0.30/metric/month).
+- **Developer Metrics:** Zero-cost operational visibility via Cognito PostConfirmation → SNS (real-time sign-up alerts) and a twice-weekly EventBridge → SES HTML digest covering user and coupon growth. No CloudWatch custom metrics ($0.30/metric/month).
 
 ## ⚖️ Tradeoffs & Limitations
 
 - **Cold Start Latency:** Using AWS Lambda for the backend ensures zero idle cost but introduces occasional sub-second cold starts. This was accepted in favor of cost-efficiency for a B2C application with variable traffic.
-- **DynamoDB Access Patterns:** The schema is optimized for lookup-by-user and expiry sweeps. While less flexible than SQL for complex joins, it offers consistent single-digit millisecond performance at scale.
+- **DynamoDB Access Patterns:** The schema is optimized for the dominant path, list-by-user, via a `Query` on the `userId` partition key. Share-link lookups go through the sparse `shareToken-index` GSI. The two scheduled jobs (expiry check, metrics digest) use full-table `Scan`s, which is acceptable at current scale but is the first thing that would need reworking as the table grows.
 - **Cost Control:** 
     - **LLM as Primary Driver:** AI extraction is the dominant cost. The architecture includes a "Fallback Mode" and quota-limiting logic to protect against bot-driven cost spikes.
     - **Serverless Efficiency:** Lambda and DynamoDB (On-Demand) were chosen specifically to maintain a "Free Tier" friendly profile while handling bursty mobile usage.
@@ -150,11 +200,11 @@ graph LR
 
 ## 📊 Observability & Insights
 
-Vaulty has two tiers of observability: real-time structured logs for system health, and a lightweight developer metrics pipeline for business-level tracking.
+Vaulty has two tiers of observability: structured logs for the AI extraction path, and a lightweight developer metrics pipeline for business-level tracking.
 
 ### Structured CloudWatch Logs
 
-All Lambda functions emit JSON-structured events queryable via CloudWatch Insights:
+The extraction handler emits JSON-structured events (`extract.started`, `extract.completed`, `extract.failed`, `extract.quota_cooldown_short_circuit`) queryable via CloudWatch Insights:
 
 **Example: Extraction Success Rate (Last 24h)**
 ```sql
@@ -169,22 +219,27 @@ fields @timestamp, event, outcome, provider, durationMs
 Two lightweight mechanisms surface business-level data without CloudWatch custom metric costs:
 
 - **Sign-up Alerts:** Cognito PostConfirmation → SNS → email. Fires within seconds of each verified registration.
-- **Bi-weekly Digest:** EventBridge (Mon + Thu 8AM UTC) → Lambda → SES HTML email. Reports total users, new users, total coupons, and breakdowns by category, status, and item type—all queried live from DynamoDB and Cognito at send time.
+- **Twice-weekly Digest:** EventBridge (Mon + Thu 8AM UTC) → Lambda → SES HTML email. Reports total users, new users, total coupons, and breakdowns by category, status, and item type—all queried live from DynamoDB and Cognito at send time.
 
 ## 🛠️ Local Setup 
 
-To explore this workspace locally, ensure you have Node.js (v20+) installed.
+This is an NPM Workspaces monorepo (`packages/backend`, `packages/mobile`, `packages/web`, `shared`). Node 20+ is the declared minimum; CI and the Lambda runtime both use Node 24.
 
 ```bash
 # 1. Install workspace dependencies
-npm install
+npm install --legacy-peer-deps
 
 # 2. Run the platform of your choice:
 npm run web           # Start the Vite React web server
 npm run mobile        # Start the Expo React Native server
 
-# Backend Development (Requires AWS SAM & env.json)
-npm run backend:dev   # Start SAM local API 
+# Backend development (requires AWS SAM CLI and packages/backend/env.json)
+npm run backend:dev   # Start SAM local API
+npm run backend:deploy
+
+# 3. Per-workspace checks
+npm run typecheck --workspace=packages/backend   # or packages/web | packages/mobile | shared
+npm run test --workspace=packages/backend        # Jest; web uses Vitest, shared uses node:test
 ```
 
 ## 📚 Project Deep Dive

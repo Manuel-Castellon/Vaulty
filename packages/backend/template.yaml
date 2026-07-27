@@ -432,9 +432,10 @@ Resources:
       BuildMethod: makefile
     Properties:
       Handler: extract.handler
-      # 60 s covers Textract sync (images) + Bedrock + QR.
-      # PDF async Textract polls up to ~25 s; very large PDFs may still hit
-      # the API Gateway 29 s limit — use the s3Key flow for those.
+      # 60 s covers the LLM call (Gemini or Bedrock) plus jsQR/jimp QR cropping,
+      # including the language-validation retry that re-prompts the provider.
+      # API Gateway still caps the client-visible request at 29 s; the extra
+      # headroom keeps the Lambda from being killed mid-write to S3.
       Timeout: 60
       Policies:
         - S3CrudPolicy:

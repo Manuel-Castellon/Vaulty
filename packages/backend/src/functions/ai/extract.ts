@@ -237,9 +237,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return badRequest("Invalid JSON body");
   }
 
-  const hasFile = (body.data && body.mimeType) || body.s3Key;
+  // s3Key is reserved in ExtractRequest but no fetch-from-S3 path is implemented
+  // yet, so it is not accepted as a standalone input — see shared/src/types/api.ts.
+  const hasFile = body.data && body.mimeType;
   if (!hasFile && !body.text) {
-    return badRequest("Provide either data+mimeType, s3Key, or text");
+    if (body.s3Key) {
+      return badRequest(
+        "s3Key extraction is not supported yet — send data+mimeType or text"
+      );
+    }
+    return badRequest("Provide either data+mimeType or text");
   }
 
   const inputType = body.text ? "text" : body.mimeType === "application/pdf" ? "pdf" : "image";

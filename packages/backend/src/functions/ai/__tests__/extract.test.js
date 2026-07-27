@@ -249,4 +249,23 @@ describe("extract handler", () => {
     expect(body.error.message).toContain("temporarily unavailable");
     expect(body.error.message).toContain("manually");
   });
+
+  test("s3Key-only input is rejected with a 400 and never calls the provider", async () => {
+    const response = await handler(createEvent({ s3Key: "user-1/abc-123" }));
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(400);
+    expect(body.error.code).toBe("BAD_REQUEST");
+    expect(body.error.message).toContain("not supported yet");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test("missing input is rejected with a 400", async () => {
+    const response = await handler(createEvent({}));
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(400);
+    expect(body.error.message).toBe("Provide either data+mimeType or text");
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });
