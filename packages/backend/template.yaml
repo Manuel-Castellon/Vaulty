@@ -44,7 +44,7 @@ Parameters:
     Type: String
     Default: "false"
     AllowedValues: ["true", "false"]
-    Description: "Set to true to use Textract + Bedrock extraction pipeline"
+    Description: "Set to true to use the Bedrock Claude extraction provider instead of Gemini"
   BedrockModelId:
     Type: String
     Default: "anthropic.claude-3-haiku-20240307-v1:0"

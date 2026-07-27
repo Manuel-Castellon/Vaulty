@@ -260,6 +260,23 @@ describe("extract handler", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  test("s3Key alongside text still extracts from the text", async () => {
+    global.fetch.mockResolvedValueOnce(geminiResponse(JSON.stringify({
+      sourceLanguage: "en",
+      sourceScript: "latin",
+      title: "Summer Sale",
+    })));
+
+    const response = await handler(
+      createEvent({ s3Key: "user-1/abc-123", text: "20% off" })
+    );
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(200);
+    expect(body.extraction.title).toBe("Summer Sale");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   test("missing input is rejected with a 400", async () => {
     const response = await handler(createEvent({}));
     const body = JSON.parse(response.body);

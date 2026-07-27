@@ -8,11 +8,12 @@
  *
  * For real image/PDF files in tests/vouchers/:
  *   - Images and PDFs are uploaded to S3 and run through the full pipeline.
- *   - Text files (.txt) are sent directly to Bedrock (no Textract step).
+ *   - Text files (.txt) are sent to the provider as raw text.
  *
  * Results are written to tests/results/<filename>.json.
  *
- * Requires AWS credentials with Textract, Bedrock, and S3 permissions.
+ * Requires AWS credentials with S3 permissions, plus Bedrock permissions when
+ * running the Bedrock provider.
  */
 
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from "fs";

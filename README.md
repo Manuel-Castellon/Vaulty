@@ -107,6 +107,8 @@ The backend stack (`packages/backend/template.yaml`) and the web hosting stack (
 
 Every route is authenticated by the API Gateway Cognito default authorizer except the public share preview, which overrides it with `Authorizer: NONE`. Handlers read the caller from `event.requestContext.authorizer.claims.sub`.
 
+Cognito backs two sign-in paths: email/password, and Google via a `UserPoolIdentityProvider` and the Cognito hosted-UI domain running the OAuth code flow. Both clients implement the redirect callback (`packages/web/src/pages/AuthCallbackPage.tsx`, `packages/mobile/app/auth/callback.tsx`).
+
 | Method | Path | Lambda | Purpose |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/coupons` | `list` | List the caller's items |
@@ -142,20 +144,20 @@ graph TD
 
 For image uploads, the LLM call and QR detection run concurrently via `Promise.allSettled`. If jsQR decodes a value the model missed, it fills in the `code` field; if the provider hits its quota but QR detection succeeded, the request still returns the QR result with a `quota_exhausted` warning instead of failing outright.
 
-The `/search` handler calls Gemini directly rather than through this interface; it is a separate, simpler path with no file or QR handling.
+The `/search` handler calls Gemini directly rather than through this interface; it is a separate, simpler path with no file or QR handling. It queries up to 200 of the caller's items and asks the model to return matching ids in rank order, so it is LLM-ranked retrieval over data already fetched, not vector search. The 200-item cap is a hard ceiling on what search can see.
 
 ### CI/CD Pipeline
-Four GitHub Actions workflows cover the monorepo. Typechecks and tests gate every deploy; the two deploy paths (backend and web) fire only on `main`, and the Android build is manual.
+Four GitHub Actions workflows cover the monorepo. Coverage is uneven by design and worth stating plainly: the backend deploy is gated on the full backend and shared suites, while the web deploy is gated on typecheck and build only.
 
 ```mermaid
 graph LR
     subgraph "deploy.yml: every push and PR"
-        TC["Typecheck + test: shared, backend, web, mobile"]
-        Deploy["SAM build + deploy → AWS (main only)"]
+        TC["Test: shared + backend, one web test file\nTypecheck: all four workspaces"]
+        Deploy["SAM build + deploy → AWS (push to main only)"]
     end
 
-    subgraph "web.yml: push to main (web/shared paths)"
-        WebTC["Typecheck web + build"]
+    subgraph "web.yml: push to main, or manual dispatch"
+        WebTC["Test shared, typecheck web, build"]
         WebDeploy["S3 sync → CloudFront invalidation"]
     end
 
@@ -176,12 +178,14 @@ graph LR
 
 All jobs run on Node 24, matching the `nodejs24.x` Lambda runtime.
 
+Two gaps to be aware of before relying on CI as a safety net: `deploy.yml` runs only a typecheck for mobile (the mobile Jest suite lives in `mobile.yml`) and only the `AddCouponPage` test file for web, and `web.yml` never runs the web Vitest suite at all before syncing to S3. `web.yml` also accepts `workflow_dispatch` with no branch guard, so it can publish a non-`main` build.
+
 ## 🚀 Key Engineering Decisions
 
-- **LLM Provider Abstraction:** A provider-agnostic interface that enables hot-swappable AI backends (Gemini, Bedrock) without altering handler logic or QR orchestration.
+- **LLM Provider Abstraction:** A provider-agnostic interface that swaps AI backends (Gemini, Bedrock Claude) without altering handler logic or QR orchestration. The abstraction is real but not yet at parity: `BedrockClaudeProvider` discards the prompt the handler passes and uses its own, so the shared extraction prompt's rules do not apply under Bedrock, and its PDF path shells out to `pdftoppm`, which is not present in the Lambda image and has no layer configured. Gemini is the only provider currently exercised end to end.
 - **Structured Observability:** The extraction pipeline emits JSON-structured CloudWatch events through a shared `log()` helper, tracking outcome, provider, input type, and duration for queryable insights. Other handlers use plain `console` logging.
-- **Multi-Format Extraction:** A unified pipeline accepting images (JPEG, PNG, WebP), PDFs, and raw text across both platforms, with source-language and script preservation enforced by a validation-and-retry pass on the model output.
-- **Graceful Degradation:** Quota management that falls back to QR-only extraction and manual-entry paths when the provider rate-limits, with a per-user, per-input cooldown so repeat submissions short-circuit instead of burning quota.
+- **Multi-Format Extraction:** A unified pipeline accepting images, PDFs, and raw text across both platforms, with source-language and script preservation enforced by a validation-and-retry pass on the model output. `/extract` treats JPEG, PNG, WebP, and GIF as images for QR detection; `/upload-url` presigns only JPEG, PNG, and WebP.
+- **Graceful Degradation:** Quota management that falls back to QR-only extraction and manual-entry paths when the provider rate-limits, keyed per user and per input hash. The cooldown is a module-level in-memory `Map`, so it is scoped to one Lambda execution environment: it suppresses repeat submissions that land on a warm container, not across the fleet.
 - **Full-Stack Type Safety:** A unified NPM Workspaces monorepo where the `@coupon/shared` library enforces strict TypeScript contracts between the AI backend and all clients.
 - **Serverless Scale & IaC:** Infrastructure-as-Code (AWS SAM / CloudFormation) ensuring a reproducible, horizontally scalable stack with zero idle cost.
 - **Event-Driven Lifecycle:** A daily EventBridge schedule scans DynamoDB for upcoming expirations and sends proactive alerts via the Expo Push API, honouring each user's stored notification preferences (on/off, days-before-expiry).
@@ -204,15 +208,17 @@ Vaulty has two tiers of observability: structured logs for the AI extraction pat
 
 ### Structured CloudWatch Logs
 
-The extraction handler emits JSON-structured events (`extract.started`, `extract.completed`, `extract.failed`, `extract.quota_cooldown_short_circuit`) queryable via CloudWatch Insights:
+The extraction handler emits JSON-structured events (`extract.started`, `extract.completed`, `extract.failed`, `extract.language_validation_failed`, `extract.quota_cooldown_short_circuit`) queryable via CloudWatch Insights:
 
-**Example: Extraction Success Rate (Last 24h)**
+**Example: Extraction outcomes and latency by provider (last 24h)**
 ```sql
 fields @timestamp, event, outcome, provider, durationMs
 | filter event = "extract.completed" or event = "extract.failed"
-| stats count() as total, count_distinct(outcome) by outcome
-| sort total desc
+| stats count() as calls, avg(durationMs) as avgMs by outcome, provider
+| sort calls desc
 ```
+
+`outcome` is one of `success`, `quota`, `network`, `provider_error`, `parse_error`, or `unknown`, so this breakdown doubles as the success-rate view.
 
 ### Developer Metrics Pipeline
 
