@@ -52,7 +52,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       new QueryCommand({
         TableName: TABLE_NAME,
         KeyConditionExpression: "userId = :userId",
-        ExpressionAttributeValues: { ":userId": userId },
+        // Exclude system records sharing the user's partition — they are not
+        // coupons, and must never be serialised into the prompt sent upstream.
+        FilterExpression: "id <> :pushToken AND id <> :prefs",
+        ExpressionAttributeValues: {
+          ":userId": userId,
+          ":pushToken": "PUSH_TOKEN",
+          ":prefs": "NOTIFICATION_PREFS",
+        },
         Limit: 200,
       })
     );
