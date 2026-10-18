@@ -46,7 +46,7 @@ describe("AuthCallbackPage", () => {
     mockHandleAuthCallback.mockResolvedValue(undefined);
     render(<AuthCallbackPage />);
     await waitFor(() => {
-      expect(mockHandleAuthCallback).toHaveBeenCalledWith("abc123");
+      expect(mockHandleAuthCallback).toHaveBeenCalledOnce();
       expect(window.location.replace).toHaveBeenCalledWith("/");
     });
   });

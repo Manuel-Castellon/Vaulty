@@ -1,159 +1,193 @@
+import { Amplify } from "aws-amplify";
+import { Hub } from "aws-amplify/utils";
 import {
-  CognitoUserPool,
-  CognitoUser,
-  AuthenticationDetails,
-  CognitoUserAttribute,
-  type CognitoUserSession,
-} from "amazon-cognito-identity-js";
+  signUp as amplifySignUp,
+  confirmSignUp as amplifyConfirmSignUp,
+  resendSignUpCode,
+  signIn as amplifySignIn,
+  signOut as amplifySignOut,
+  resetPassword,
+  confirmResetPassword,
+  signInWithRedirect,
+  fetchAuthSession,
+} from "aws-amplify/auth";
+import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
 
-const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID as string;
-const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN as string; // e.g. vaulty-dev-123456789.auth.us-east-1.amazoncognito.com
+const CALLBACK_PATH = "/auth/callback";
+const SIGN_OUT_TIMEOUT_MS = 10_000;
+const CALLBACK_TIMEOUT_MS = 30_000;
 
-const pool = new CognitoUserPool({
-  UserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID as string,
-  ClientId: CLIENT_ID,
+Amplify.configure({
+  Auth: {
+    Cognito: {
+      userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID as string,
+      userPoolClientId: import.meta.env.VITE_COGNITO_CLIENT_ID as string,
+      loginWith: {
+        oauth: {
+          domain: import.meta.env.VITE_COGNITO_DOMAIN as string, // e.g. vaulty-dev-123456789.auth.us-east-1.amazoncognito.com
+          scopes: ["email", "openid", "profile"],
+          redirectSignIn: [`${window.location.origin}${CALLBACK_PATH}`],
+          redirectSignOut: [`${window.location.origin}/`],
+          responseType: "code",
+        },
+      },
+    },
+  },
 });
+
+// Google id_token written by the pre-Amplify hand-rolled OAuth flow. Amplify now
+// owns federated sessions, so the old key is dead; those users sign in once more.
+localStorage.removeItem("vaulty_id_token");
+
+// Amplify completes the Google redirect on its own when the callback page loads
+// and reports the outcome only through Hub. This listener is attached before
+// that async work can finish, so the outcome is never missed.
+const redirectOutcome = new Promise<void>((resolve, reject) => {
+  Hub.listen("auth", ({ payload }) => {
+    if (payload.event === "signInWithRedirect") resolve();
+    if (payload.event === "signInWithRedirect_failure") {
+      reject(new Error(payload.data?.error?.message ?? "Sign-in failed"));
+    }
+  });
+});
+redirectOutcome.catch(() => {}); // only handleAuthCallback reports it
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    p.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
+// Callers branch on `err.code` (e.g. "UserNotConfirmedException"). Amplify puts
+// the Cognito error name in `name`, so mirror it onto `code`.
+function withCode(err: unknown): Error & { code?: string } {
+  if (err instanceof Error) return Object.assign(err, { code: err.name });
+  return new Error(String(err));
+}
+
+async function rethrowWithCode<T>(p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (err) {
+    throw withCode(err);
+  }
+}
 
 // ── Email/password auth ────────────────────────────────────────────────────
 
-export function signUp(email: string, password: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const attrs = [new CognitoUserAttribute({ Name: "email", Value: email })];
-    pool.signUp(email, password, attrs, [], (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+export async function signUp(email: string, password: string): Promise<void> {
+  await rethrowWithCode(
+    amplifySignUp({ username: email, password, options: { userAttributes: { email } } })
+  );
 }
 
-export function confirmSignUp(email: string, code: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.confirmRegistration(code, true, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+export async function confirmSignUp(email: string, code: string): Promise<void> {
+  await rethrowWithCode(amplifyConfirmSignUp({ username: email, confirmationCode: code }));
 }
 
-export function resendConfirmationCode(email: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.resendConfirmationCode((err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+export async function resendConfirmationCode(email: string): Promise<void> {
+  await rethrowWithCode(resendSignUpCode({ username: email }));
 }
 
-export function signIn(email: string, password: string): Promise<CognitoUserSession> {
-  return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    const auth = new AuthenticationDetails({ Username: email, Password: password });
-    user.authenticateUser(auth, {
-      onSuccess: resolve,
-      onFailure: reject,
-    });
-  });
+export async function signIn(email: string, password: string): Promise<void> {
+  const result = await rethrowWithCode(amplifySignIn({ username: email, password }));
+  if (result.isSignedIn) return;
+  switch (result.nextStep.signInStep) {
+    case "CONFIRM_SIGN_UP":
+      throw Object.assign(new Error("User is not confirmed."), { code: "UserNotConfirmedException" });
+    case "RESET_PASSWORD":
+      throw Object.assign(new Error("You need to reset your password before signing in."), {
+        code: "PasswordResetRequiredException",
+      });
+    default:
+      throw new Error(`Sign-in needs an unsupported step: ${result.nextStep.signInStep}`);
+  }
 }
 
-export function signOut(): void {
-  pool.getCurrentUser()?.signOut();
-  localStorage.removeItem("vaulty_id_token");
+// Google users are sent through Cognito's /logout and land back on "/".
+// Resolves once local tokens are gone, even if Amplify's revoke call stalls.
+export async function signOut(): Promise<void> {
+  try {
+    await withTimeout(amplifySignOut(), SIGN_OUT_TIMEOUT_MS, "Sign-out timed out");
+  } catch (err) {
+    console.error("[auth] Amplify sign-out did not complete:", err);
+  }
+  const store = cognitoUserPoolsTokenProvider.authTokenStore;
+  if (await store.loadTokens()) {
+    console.error("[auth] tokens survived sign-out; clearing them directly");
+    await store.clearTokens();
+  }
 }
 
-export function forgotPassword(email: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.forgotPassword({
-      onSuccess: () => resolve(),
-      onFailure: (err) => reject(err),
-    });
-  });
+export async function forgotPassword(email: string): Promise<void> {
+  await rethrowWithCode(resetPassword({ username: email }));
 }
 
-export function confirmForgotPassword(
+export async function confirmForgotPassword(
   email: string,
   code: string,
   newPassword: string
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const user = new CognitoUser({ Username: email, Pool: pool });
-    user.confirmPassword(code, newPassword, {
-      onSuccess: () => resolve(),
-      onFailure: (err) => reject(err),
-    });
-  });
+  await rethrowWithCode(
+    confirmResetPassword({ username: email, confirmationCode: code, newPassword })
+  );
 }
 
 // ── Google SSO ─────────────────────────────────────────────────────────────
 
-export function getGoogleSignInUrl(): string {
-  const redirectUri = encodeURIComponent(`${window.location.origin}/auth/callback`);
-  return (
-    `https://${COGNITO_DOMAIN}/oauth2/authorize` +
-    `?identity_provider=Google` +
-    `&redirect_uri=${redirectUri}` +
-    `&response_type=code` +
-    `&client_id=${CLIENT_ID}` +
-    `&scope=email+openid+profile`
-  );
+// Navigates away to the Cognito hosted UI (code flow with PKCE).
+export async function signInWithGoogle(): Promise<void> {
+  await rethrowWithCode(signInWithRedirect({ provider: "Google" }));
 }
 
-// Called by AuthCallbackPage after Cognito redirects back with ?code=...
-export async function handleAuthCallback(code: string): Promise<void> {
-  const redirectUri = `${window.location.origin}/auth/callback`;
-  const res = await fetch(`https://${COGNITO_DOMAIN}/oauth2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: CLIENT_ID,
-      code,
-      redirect_uri: redirectUri,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Token exchange failed (${res.status})${body ? `: ${body}` : ""}`);
-  }
-
-  const { id_token } = await res.json();
-  localStorage.setItem("vaulty_id_token", id_token);
+// Called by AuthCallbackPage. Amplify exchanges the code itself. fetchAuthSession
+// waits for that, but only within 5 minutes of the click, so for slow hosted-UI
+// visits wait for the Hub outcome as well.
+export async function handleAuthCallback(): Promise<void> {
+  const session = await fetchAuthSession();
+  if (session.tokens?.idToken) return;
+  await withTimeout(
+    redirectOutcome,
+    CALLBACK_TIMEOUT_MS,
+    "Sign-in is taking too long. Check your connection and try again."
+  );
+  const after = await fetchAuthSession();
+  if (!after.tokens?.idToken) throw new Error("Sign-in failed");
 }
 
 // ── Token/session helpers ──────────────────────────────────────────────────
 
-function getStoredFederatedToken(): string | null {
-  const token = localStorage.getItem("vaulty_id_token");
-  if (!token) return null;
+type IdToken = { token: string; payload: Record<string, unknown> };
+
+// Fresh id token, refreshed when expired. null means signed out. Throws when a
+// refresh fails for a transient reason (offline, Cognito 5xx); Amplify keeps the
+// tokens then, so the user is still signed in.
+async function getFreshIdToken(): Promise<IdToken | null> {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    if (payload.exp * 1000 < Date.now()) {
-      localStorage.removeItem("vaulty_id_token");
-      return null;
-    }
-    return token;
-  } catch {
-    return null;
+    const { tokens } = await fetchAuthSession();
+    if (!tokens?.idToken) return null;
+    return { token: tokens.idToken.toString(), payload: tokens.idToken.payload };
+  } catch (err) {
+    console.error("[auth] session refresh failed, tokens kept:", err);
+    throw new Error("Couldn't refresh your session. Check your connection and try again.");
   }
 }
 
-export function getIdToken(): Promise<string | null> {
-  return new Promise((resolve) => {
-    // Check email/password session first
-    const user = pool.getCurrentUser();
-    if (user) {
-      user.getSession((err: Error | null, session: CognitoUserSession | null) => {
-        if (!err && session?.isValid()) return resolve(session.getIdToken().getJwtToken());
-        // Fall through to federated token
-        resolve(getStoredFederatedToken());
-      });
-    } else {
-      resolve(getStoredFederatedToken());
-    }
-  });
+// Identity only (who is signed in), so a stored but expired token is fine when
+// it cannot be refreshed right now.
+async function getIdentity(): Promise<IdToken | null> {
+  try {
+    return await getFreshIdToken();
+  } catch {
+    const stored = await cognitoUserPoolsTokenProvider.authTokenStore.loadTokens();
+    if (!stored?.idToken) return null;
+    return { token: stored.idToken.toString(), payload: stored.idToken.payload };
+  }
+}
+
+export async function getIdToken(): Promise<string | null> {
+  return (await getFreshIdToken())?.token ?? null;
 }
 
 export interface UserInfo {
@@ -162,42 +196,27 @@ export interface UserInfo {
 }
 
 export async function getCurrentUserInfo(): Promise<UserInfo> {
-  const token = await getIdToken();
-  if (!token) return { email: null, provider: "email" };
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const identities = payload.identities as Array<{ providerName: string }> | undefined;
-    const provider = identities?.some((i) => i.providerName === "Google") ? "google" : "email";
-    return { email: payload.email ?? null, provider };
-  } catch {
-    return { email: null, provider: "email" };
-  }
+  const id = await getIdentity();
+  if (!id) return { email: null, provider: "email" };
+  const identities = id.payload.identities as Array<{ providerName: string }> | undefined;
+  const provider = identities?.some((i) => i.providerName === "Google") ? "google" : "email";
+  return { email: (id.payload.email as string | undefined) ?? null, provider };
 }
 
-export function getCurrentUserId(): Promise<string | null> {
-  return new Promise((resolve) => {
-    const user = pool.getCurrentUser();
-    if (user) {
-      user.getSession((err: Error | null, session: CognitoUserSession | null) => {
-        if (!err && session?.isValid()) return resolve(session.getIdToken().payload.sub ?? null);
-        const token = getStoredFederatedToken();
-        if (!token) return resolve(null);
-        try {
-          const payload = JSON.parse(atob(token.split(".")[1]));
-          resolve(payload.sub ?? null);
-        } catch {
-          resolve(null);
-        }
-      });
-    } else {
-      const token = getStoredFederatedToken();
-      if (!token) return resolve(null);
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        resolve(payload.sub ?? null);
-      } catch {
-        resolve(null);
-      }
+export async function getCurrentUserId(): Promise<string | null> {
+  return ((await getIdentity())?.payload.sub as string | undefined) ?? null;
+}
+
+// Fires when Amplify signs the user in or out on its own, e.g. a refresh token
+// that was revoked or expired mid-session. Returns an unsubscribe function.
+export function onAuthChange(callback: () => void): () => void {
+  return Hub.listen("auth", ({ payload }) => {
+    if (
+      payload.event === "signedIn" ||
+      payload.event === "signedOut" ||
+      payload.event === "tokenRefresh_failure"
+    ) {
+      callback();
     }
   });
 }

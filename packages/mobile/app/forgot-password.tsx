@@ -8,12 +8,14 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { forgotPassword } from "../services/auth";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  // Prefilled when login sends a reset-required user here
+  const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
+  const [email, setEmail] = useState(emailParam ?? "");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {

@@ -40,7 +40,7 @@ describe("AuthCallbackScreen", () => {
     mockRefreshAuth.mockResolvedValue(undefined);
     render(<AuthCallbackScreen />);
     await waitFor(() => {
-      expect(mockHandleAuthCallback).toHaveBeenCalledWith("abc123");
+      expect(mockHandleAuthCallback).toHaveBeenCalledTimes(1);
       expect(mockRefreshAuth).toHaveBeenCalled();
       expect(mockReplace).toHaveBeenCalledWith("/");
     });

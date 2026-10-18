@@ -37,7 +37,7 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    handleAuthCallback(code)
+    handleAuthCallback()
       .then(() => window.location.replace("/"))
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : "Sign-in failed";

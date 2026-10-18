@@ -7,10 +7,14 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { signIn, getGoogleSignInUrl } from "../services/auth";
+import {
+  signIn,
+  signInWithGoogle,
+  isGoogleSignInCancel,
+  type GoogleSignInError,
+} from "../services/auth";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen() {
@@ -19,6 +23,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -33,6 +38,8 @@ export default function LoginScreen() {
     } catch (err: any) {
       if (err.code === "UserNotConfirmedException") {
         router.push(`/confirm?email=${encodeURIComponent(email)}`);
+      } else if (err.code === "PasswordResetRequiredException") {
+        router.push(`/forgot-password?email=${encodeURIComponent(email)}`);
       } else {
         Alert.alert("Sign in failed", err.message ?? "Please try again.");
       }
@@ -41,8 +48,21 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    Linking.openURL(getGoogleSignInUrl());
+  // Once the redirect reaches the app, the auth/callback screen shows the
+  // outcome. Failures before that (no browser, closed tab, bad config) land here.
+  const handleGoogleSignIn = async () => {
+    setGoogleBusy(true);
+    try {
+      await signInWithGoogle();
+      await refreshAuth();
+    } catch (err: unknown) {
+      if (isGoogleSignInCancel(err) || (err as GoogleSignInError).shownByCallbackScreen) return;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[login] Google sign-in failed:", message);
+      Alert.alert("Google sign-in failed", message);
+    } finally {
+      setGoogleBusy(false);
+    }
   };
 
   return (
@@ -96,8 +116,12 @@ export default function LoginScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleSignIn}>
-          <Text style={styles.googleBtnText}>Continue with Google</Text>
+        <TouchableOpacity
+          style={[styles.googleBtn, googleBusy && styles.btnDisabled]}
+          onPress={handleGoogleSignIn}
+          disabled={googleBusy}
+        >
+          <Text style={styles.googleBtnText}>{googleBusy ? "Opening Google…" : "Continue with Google"}</Text>
         </TouchableOpacity>
       </View>
 

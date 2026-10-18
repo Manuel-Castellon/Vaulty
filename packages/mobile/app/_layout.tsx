@@ -119,8 +119,8 @@ function RootLayoutInner() {
     );
   }
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     router.replace("/login");
   };
 
@@ -155,6 +155,7 @@ function RootLayoutInner() {
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="confirm" options={{ title: "Confirm Email" }} />
       <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/signout" options={{ headerShown: false }} />
       <Stack.Screen name="forgot-password" options={{ title: "Reset Password" }} />
       <Stack.Screen name="reset-password" options={{ title: "Set New Password" }} />
       <Stack.Screen name="settings/notifications" options={{ title: "Notification Settings" }} />

@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { forgotPassword } from "../services/auth";
 import styles from "./auth.module.css";
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  // Prefilled when login sends a reset-required user here
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

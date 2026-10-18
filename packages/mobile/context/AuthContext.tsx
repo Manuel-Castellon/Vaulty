@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getIdToken, getCurrentUserInfo, initSecureStorage, signOut as cognitoSignOut } from "../services/auth";
+import { getCurrentUserId, getCurrentUserInfo, onAuthChange, signOut as cognitoSignOut } from "../services/auth";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -7,7 +7,7 @@ interface AuthContextValue {
   authProvider: "email" | "google" | null;
   loading: boolean;
   refreshAuth: () => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -16,14 +16,8 @@ const AuthContext = createContext<AuthContextValue>({
   authProvider: null,
   loading: true,
   refreshAuth: async () => {},
-  signOut: () => {},
+  signOut: async () => {},
 });
-
-let _storageInitialized = false;
-
-export function __resetStorageInitForTests() {
-  _storageInitialized = false;
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -32,22 +26,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshAuth = async () => {
-    if (!_storageInitialized) {
-      await initSecureStorage();
-      _storageInitialized = true;
-    }
-    const [token, info] = await Promise.all([getIdToken(), getCurrentUserInfo()]);
-    setIsAuthenticated(!!token);
+    // Identity, not a fresh token: offline users with a stored session stay in.
+    const [userId, info] = await Promise.all([getCurrentUserId(), getCurrentUserInfo()]);
+    setIsAuthenticated(!!userId);
     setUserEmail(info.email);
     setAuthProvider(info.email ? info.provider : null);
   };
 
   useEffect(() => {
-    refreshAuth().finally(() => setLoading(false));
+    refreshAuth()
+      .catch((err: unknown) => console.error("[auth] session check failed:", err))
+      .finally(() => setLoading(false));
+    // Amplify can end the session on its own (revoked or expired refresh token).
+    return onAuthChange(() => {
+      refreshAuth().catch((err: unknown) => console.error("[auth] session check failed:", err));
+    });
   }, []);
 
-  const signOut = () => {
-    cognitoSignOut();
+  const signOut = async () => {
+    try {
+      await cognitoSignOut();
+    } catch (err) {
+      console.error("[auth] sign-out failed:", err);
+    }
     setIsAuthenticated(false);
     setUserEmail(null);
     setAuthProvider(null);

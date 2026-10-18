@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getCurrentUserId, getCurrentUserInfo, signOut as cognitoSignOut } from "../services/auth";
+import { getCurrentUserId, getCurrentUserInfo, onAuthChange, signOut as cognitoSignOut } from "../services/auth";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -7,7 +7,7 @@ interface AuthState {
   userEmail: string | null;
   authProvider: "email" | "google" | null;
   loading: boolean;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -16,7 +16,7 @@ const AuthContext = createContext<AuthState>({
   userEmail: null,
   authProvider: null,
   loading: true,
-  signOut: () => {},
+  signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -26,17 +26,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getCurrentUserId(), getCurrentUserInfo()])
-      .then(([id, info]) => {
-        setUserId(id);
-        setUserEmail(info.email);
-        setAuthProvider(info.email ? info.provider : null);
-      })
-      .finally(() => setLoading(false));
+    const check = () =>
+      Promise.all([getCurrentUserId(), getCurrentUserInfo()])
+        .then(([id, info]) => {
+          setUserId(id);
+          setUserEmail(info.email);
+          setAuthProvider(info.email ? info.provider : null);
+        })
+        .catch((err: unknown) => console.error("[auth] session check failed:", err))
+        .finally(() => setLoading(false));
+    check();
+    // Amplify can end the session on its own (revoked or expired refresh token).
+    return onAuthChange(check);
   }, []);
 
-  const signOut = () => {
-    cognitoSignOut();
+  const signOut = async () => {
+    try {
+      await cognitoSignOut();
+    } catch (err) {
+      console.error("[auth] sign-out failed:", err);
+    }
     setUserId(null);
     setUserEmail(null);
     setAuthProvider(null);

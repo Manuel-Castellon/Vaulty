@@ -1,182 +1,287 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock the Cognito SDK before importing auth
-vi.mock("amazon-cognito-identity-js", () => {
-  const mockGetSession = vi.fn();
-  const mockSignOut = vi.fn();
-  const mockCurrentUser = { getSession: mockGetSession, signOut: mockSignOut };
-  const mockPool = {
-    getCurrentUser: vi.fn(() => mockCurrentUser),
-    signUp: vi.fn(),
-  };
+type HubListener = (e: { payload: { event: string; data?: unknown } }) => void;
+
+// vi.mock factories are hoisted, so shared mocks must be hoisted too. The legacy
+// key is set here, before ../auth loads, so its cleanup on load can be observed.
+const mocks = vi.hoisted(() => {
+  localStorage.setItem("vaulty_id_token", "legacy-token");
   return {
-    CognitoUserPool: vi.fn(() => mockPool),
-    CognitoUser: vi.fn(),
-    AuthenticationDetails: vi.fn(),
-    CognitoUserAttribute: vi.fn(),
-    __mockPool: mockPool,
-    __mockCurrentUser: mockCurrentUser,
-    __mockGetSession: mockGetSession,
+    configure: vi.fn(),
+    hubListeners: [] as HubListener[],
+    signUp: vi.fn(),
+    confirmSignUp: vi.fn(),
+    resendSignUpCode: vi.fn(),
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    resetPassword: vi.fn(),
+    confirmResetPassword: vi.fn(),
+    signInWithRedirect: vi.fn(),
+    fetchAuthSession: vi.fn(),
+    loadTokens: vi.fn(),
+    clearTokens: vi.fn(),
   };
 });
 
-// Import after mock is set up
-import { handleAuthCallback, getIdToken, getCurrentUserId, signOut } from "../auth";
-import * as cognitoModule from "amazon-cognito-identity-js";
+vi.mock("aws-amplify", () => ({ Amplify: { configure: mocks.configure } }));
+vi.mock("aws-amplify/utils", () => ({
+  Hub: {
+    listen: (_channel: string, cb: HubListener) => {
+      mocks.hubListeners.push(cb);
+      return () => mocks.hubListeners.splice(mocks.hubListeners.indexOf(cb), 1);
+    },
+  },
+}));
+vi.mock("aws-amplify/auth/cognito", () => ({
+  cognitoUserPoolsTokenProvider: {
+    authTokenStore: { loadTokens: mocks.loadTokens, clearTokens: mocks.clearTokens },
+  },
+}));
+vi.mock("aws-amplify/auth", () => ({
+  signUp: mocks.signUp,
+  confirmSignUp: mocks.confirmSignUp,
+  resendSignUpCode: mocks.resendSignUpCode,
+  signIn: mocks.signIn,
+  signOut: mocks.signOut,
+  resetPassword: mocks.resetPassword,
+  confirmResetPassword: mocks.confirmResetPassword,
+  signInWithRedirect: mocks.signInWithRedirect,
+  fetchAuthSession: mocks.fetchAuthSession,
+}));
 
-// Access the mocks through the module
-const mocks = cognitoModule as any;
+import {
+  signUp,
+  signIn,
+  signOut,
+  signInWithGoogle,
+  handleAuthCallback,
+  getIdToken,
+  getCurrentUserId,
+  getCurrentUserInfo,
+  onAuthChange,
+} from "../auth";
 
-// Helper to build a JWT with arbitrary payload
-function makeJwt(payload: Record<string, unknown>): string {
-  const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const body = btoa(JSON.stringify(payload));
-  return `${header}.${body}.fakesig`;
+function namedError(name: string, message = name): Error {
+  const err = new Error(message);
+  err.name = name;
+  return err;
 }
 
-function futureExp() {
-  return Math.floor(Date.now() / 1000) + 3600; // 1h from now
+function idToken(payload: Record<string, unknown>, jwt = "header.body.sig") {
+  return { toString: () => jwt, payload };
 }
 
-function pastExp() {
-  return Math.floor(Date.now() / 1000) - 1; // 1s ago
+function sessionWith(payload: Record<string, unknown>, jwt?: string) {
+  return { tokens: { idToken: idToken(payload, jwt) } };
 }
 
-describe("handleAuthCallback", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.stubGlobal("fetch", vi.fn());
+function emitHub(event: string, data?: unknown) {
+  for (const listener of [...mocks.hubListeners]) listener({ payload: { event, data } });
+}
+
+// Captured before beforeEach clears mock history.
+const amplifyConfig = mocks.configure.mock.calls[0]?.[0];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.loadTokens.mockResolvedValue(null);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("module setup", () => {
+  it("configures Amplify with the Cognito pool and the hosted UI on this origin", () => {
+    const oauth = amplifyConfig.Auth.Cognito.loginWith.oauth;
+    expect(oauth.responseType).toBe("code");
+    expect(oauth.scopes).toEqual(["email", "openid", "profile"]);
+    expect(oauth.redirectSignIn).toEqual([`${window.location.origin}/auth/callback`]);
+    expect(oauth.redirectSignOut).toEqual([`${window.location.origin}/`]);
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("exchanges code for token and stores it in localStorage", async () => {
-    const fakeToken = makeJwt({ sub: "user-123", exp: futureExp() });
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ({ id_token: fakeToken }),
-    });
-
-    await handleAuthCallback("auth-code-abc");
-
-    expect(fetch).toHaveBeenCalledOnce();
-    const [url, options] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(url).toContain("/oauth2/token");
-    const body = new URLSearchParams(options.body);
-    expect(body.get("grant_type")).toBe("authorization_code");
-    expect(body.get("code")).toBe("auth-code-abc");
-    expect(body.get("redirect_uri")).toContain("/auth/callback");
-    expect(localStorage.getItem("vaulty_id_token")).toBe(fakeToken);
-  });
-
-  it("throws with status and body on non-ok response", async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      status: 400,
-      text: async () => '{"error":"invalid_grant"}',
-    });
-
-    await expect(handleAuthCallback("bad-code")).rejects.toThrow("400");
-    expect(localStorage.getItem("vaulty_id_token")).toBeNull();
-  });
-
-  it("throws when fetch itself fails (network error)", async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Network error"));
-
-    await expect(handleAuthCallback("any-code")).rejects.toThrow("Network error");
+  it("removes the id_token left by the pre-Amplify Google flow", () => {
     expect(localStorage.getItem("vaulty_id_token")).toBeNull();
   });
 });
 
-describe("getIdToken — federated (localStorage) path", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    // No Cognito pool user
-    mocks.__mockPool.getCurrentUser.mockReturnValue(null);
+describe("getIdToken / getCurrentUserId / getCurrentUserInfo", () => {
+  it("returns the id token from the Amplify session", async () => {
+    mocks.fetchAuthSession.mockResolvedValue(sessionWith({ sub: "u1" }, "the.jwt.value"));
+    expect(await getIdToken()).toBe("the.jwt.value");
   });
 
-  it("returns null when no token in localStorage", async () => {
+  it("returns null when there is no session", async () => {
+    mocks.fetchAuthSession.mockResolvedValue({ tokens: undefined });
     expect(await getIdToken()).toBeNull();
-  });
-
-  it("returns null when stored token is expired", async () => {
-    localStorage.setItem("vaulty_id_token", makeJwt({ sub: "u1", exp: pastExp() }));
-    expect(await getIdToken()).toBeNull();
-    expect(localStorage.getItem("vaulty_id_token")).toBeNull(); // also cleaned up
-  });
-
-  it("returns the token when valid and not expired", async () => {
-    const token = makeJwt({ sub: "u1", exp: futureExp() });
-    localStorage.setItem("vaulty_id_token", token);
-    expect(await getIdToken()).toBe(token);
-  });
-
-  it("returns null for a malformed token", async () => {
-    localStorage.setItem("vaulty_id_token", "not.a.jwt");
-    expect(await getIdToken()).toBeNull();
-  });
-});
-
-describe("getCurrentUserId — federated path", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    mocks.__mockPool.getCurrentUser.mockReturnValue(null);
-  });
-
-  it("returns null when no token present", async () => {
     expect(await getCurrentUserId()).toBeNull();
   });
 
-  it("returns sub from a valid stored token", async () => {
-    const token = makeJwt({ sub: "user-xyz", exp: futureExp() });
-    localStorage.setItem("vaulty_id_token", token);
-    expect(await getCurrentUserId()).toBe("user-xyz");
+  it("getIdToken throws a connection error when refresh fails, instead of sending no token", async () => {
+    mocks.fetchAuthSession.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(getIdToken()).rejects.toThrow(/couldn't refresh your session/i);
   });
 
-  it("returns null when stored token is expired", async () => {
-    localStorage.setItem("vaulty_id_token", makeJwt({ sub: "u1", exp: pastExp() }));
-    expect(await getCurrentUserId()).toBeNull();
-  });
-});
-
-describe("getCurrentUserId — Cognito session path", () => {
-  beforeEach(() => {
-    localStorage.clear();
+  it("keeps the user identified from stored tokens while a refresh cannot run", async () => {
+    mocks.fetchAuthSession.mockRejectedValue(new TypeError("Failed to fetch"));
+    mocks.loadTokens.mockResolvedValue({ idToken: idToken({ sub: "offline-user", email: "a@b.com" }) });
+    expect(await getCurrentUserId()).toBe("offline-user");
+    expect(await getCurrentUserInfo()).toEqual({ email: "a@b.com", provider: "email" });
   });
 
-  it("returns sub from a valid Cognito session", async () => {
-    const mockSession = {
-      isValid: () => true,
-      getIdToken: () => ({ payload: { sub: "cognito-user-999" } }),
-    };
-    mocks.__mockPool.getCurrentUser.mockReturnValue(mocks.__mockCurrentUser);
-    mocks.__mockGetSession.mockImplementation((cb: Function) =>
-      cb(null, mockSession)
-    );
-
+  it("returns sub as the user id", async () => {
+    mocks.fetchAuthSession.mockResolvedValue(sessionWith({ sub: "cognito-user-999" }));
     expect(await getCurrentUserId()).toBe("cognito-user-999");
   });
 
-  it("falls back to federated token when Cognito session is invalid", async () => {
-    const token = makeJwt({ sub: "federated-user", exp: futureExp() });
-    localStorage.setItem("vaulty_id_token", token);
-
-    mocks.__mockPool.getCurrentUser.mockReturnValue(mocks.__mockCurrentUser);
-    mocks.__mockGetSession.mockImplementation((cb: Function) =>
-      cb(new Error("Session expired"), null)
+  it("reports Google as provider for federated users", async () => {
+    mocks.fetchAuthSession.mockResolvedValue(
+      sessionWith({ sub: "u1", email: "a@b.com", identities: [{ providerName: "Google" }] })
     );
+    expect(await getCurrentUserInfo()).toEqual({ email: "a@b.com", provider: "google" });
+  });
 
-    expect(await getCurrentUserId()).toBe("federated-user");
+  it("reports email as provider for password users and ignores unknown claims", async () => {
+    mocks.fetchAuthSession.mockResolvedValue(
+      sessionWith({ sub: "u1", email: "a@b.com", some_new_claim: { nested: true } })
+    );
+    expect(await getCurrentUserInfo()).toEqual({ email: "a@b.com", provider: "email" });
+  });
+});
+
+describe("signUp", () => {
+  it("uses the email as username and email attribute", async () => {
+    mocks.signUp.mockResolvedValue({});
+    await signUp("a@b.com", "Passw0rd");
+    expect(mocks.signUp).toHaveBeenCalledWith({
+      username: "a@b.com",
+      password: "Passw0rd",
+      options: { userAttributes: { email: "a@b.com" } },
+    });
+  });
+
+  it("exposes the Cognito error name as err.code", async () => {
+    mocks.signUp.mockRejectedValue(namedError("UsernameExistsException", "User already exists"));
+    await expect(signUp("a@b.com", "x")).rejects.toMatchObject({
+      code: "UsernameExistsException",
+      message: "User already exists",
+    });
+  });
+});
+
+describe("signIn", () => {
+  it("resolves when Amplify reports the user signed in", async () => {
+    mocks.signIn.mockResolvedValue({ isSignedIn: true, nextStep: { signInStep: "DONE" } });
+    await expect(signIn("a@b.com", "pw")).resolves.toBeUndefined();
+    expect(mocks.signIn).toHaveBeenCalledWith({ username: "a@b.com", password: "pw" });
+  });
+
+  it("throws UserNotConfirmedException when Cognito wants sign-up confirmation", async () => {
+    mocks.signIn.mockResolvedValue({ isSignedIn: false, nextStep: { signInStep: "CONFIRM_SIGN_UP" } });
+    await expect(signIn("a@b.com", "pw")).rejects.toMatchObject({ code: "UserNotConfirmedException" });
+  });
+
+  it("throws PasswordResetRequiredException so login can route to forgot-password", async () => {
+    mocks.signIn.mockResolvedValue({ isSignedIn: false, nextStep: { signInStep: "RESET_PASSWORD" } });
+    await expect(signIn("a@b.com", "pw")).rejects.toMatchObject({ code: "PasswordResetRequiredException" });
+  });
+
+  it("throws on any other next step instead of pretending to be signed in", async () => {
+    mocks.signIn.mockResolvedValue({
+      isSignedIn: false,
+      nextStep: { signInStep: "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED" },
+    });
+    await expect(signIn("a@b.com", "pw")).rejects.toThrow("NEW_PASSWORD_REQUIRED");
+  });
+
+  it("maps wrong-password errors to err.code", async () => {
+    mocks.signIn.mockRejectedValue(namedError("NotAuthorizedException", "Incorrect username or password."));
+    await expect(signIn("a@b.com", "bad")).rejects.toMatchObject({
+      code: "NotAuthorizedException",
+      message: "Incorrect username or password.",
+    });
   });
 });
 
 describe("signOut", () => {
-  it("removes the federated token from localStorage", () => {
-    localStorage.setItem("vaulty_id_token", "sometoken");
-    mocks.__mockPool.getCurrentUser.mockReturnValue(mocks.__mockCurrentUser);
-    signOut();
-    expect(localStorage.getItem("vaulty_id_token")).toBeNull();
+  it("delegates to Amplify and leaves storage alone when it cleared the tokens", async () => {
+    mocks.signOut.mockResolvedValue(undefined);
+    await signOut();
+    expect(mocks.signOut).toHaveBeenCalledOnce();
+    expect(mocks.clearTokens).not.toHaveBeenCalled();
+  });
+
+  it("clears tokens directly when Amplify's sign-out stalls", async () => {
+    vi.useFakeTimers();
+    mocks.signOut.mockReturnValue(new Promise(() => {})); // revoke call never returns
+    mocks.loadTokens.mockResolvedValue({ idToken: idToken({ sub: "u1" }) });
+    const done = signOut();
+    await vi.advanceTimersByTimeAsync(10_000);
+    await done;
+    expect(mocks.clearTokens).toHaveBeenCalledOnce();
+  });
+
+  it("clears tokens directly when Amplify's sign-out rejects", async () => {
+    mocks.signOut.mockRejectedValue(namedError("OAuthSignOutException"));
+    mocks.loadTokens.mockResolvedValue({ idToken: idToken({ sub: "u1" }) });
+    await signOut();
+    expect(mocks.clearTokens).toHaveBeenCalledOnce();
+  });
+});
+
+describe("onAuthChange", () => {
+  it("fires when Amplify ends or starts a session, not on unrelated events", () => {
+    const cb = vi.fn();
+    const stop = onAuthChange(cb);
+    emitHub("tokenRefresh");
+    emitHub("tokenRefresh_failure");
+    emitHub("signedOut");
+    expect(cb).toHaveBeenCalledTimes(2);
+    stop();
+    emitHub("signedOut");
+    expect(cb).toHaveBeenCalledTimes(2);
+  });
+});
+
+// The redirect outcome settles once per page load, so order matters here.
+describe("Google SSO", () => {
+  it("starts the hosted UI redirect for Google", async () => {
+    mocks.signInWithRedirect.mockResolvedValue(undefined);
+    await signInWithGoogle();
+    expect(mocks.signInWithRedirect).toHaveBeenCalledWith({ provider: "Google" });
+  });
+
+  it("handleAuthCallback resolves once Amplify has stored tokens", async () => {
+    mocks.fetchAuthSession.mockResolvedValue(sessionWith({ sub: "u1" }));
+    await expect(handleAuthCallback()).resolves.toBeUndefined();
+  });
+
+  it("handleAuthCallback times out instead of spinning when no outcome arrives", async () => {
+    vi.useFakeTimers();
+    mocks.fetchAuthSession.mockResolvedValue({ tokens: undefined });
+    const assertion = expect(handleAuthCallback()).rejects.toThrow(/taking too long/i);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await assertion;
+  });
+
+  it("handleAuthCallback rejects with the redirect failure reported on Hub", async () => {
+    emitHub("signInWithRedirect_failure", { error: new Error("invalid_grant") });
+    mocks.fetchAuthSession.mockResolvedValue({ tokens: undefined });
+    await expect(handleAuthCallback()).rejects.toThrow("invalid_grant");
+  });
+
+  it("handleAuthCallback waits for a slow exchange (hosted UI visit over 5 minutes)", async () => {
+    // Fresh module instance, so its redirect outcome is still pending.
+    vi.resetModules();
+    const fresh = await import("../auth");
+    // fetchAuthSession stopped waiting (deadline passed) before tokens landed.
+    mocks.fetchAuthSession
+      .mockResolvedValueOnce({ tokens: undefined })
+      .mockResolvedValueOnce(sessionWith({ sub: "u1" }));
+    const result = fresh.handleAuthCallback();
+    await Promise.resolve();
+    emitHub("signInWithRedirect");
+    await expect(result).resolves.toBeUndefined();
   });
 });

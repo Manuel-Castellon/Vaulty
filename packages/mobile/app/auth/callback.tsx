@@ -33,7 +33,7 @@ export default function AuthCallbackScreen() {
       return;
     }
 
-    handleAuthCallback(code)
+    handleAuthCallback()
       .then(async () => {
         await refreshAuth();
         router.replace("/");
