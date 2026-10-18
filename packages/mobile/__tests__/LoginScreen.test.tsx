@@ -26,6 +26,9 @@ function withProps(message: string, props: Record<string, unknown>): Error {
   return Object.assign(new Error(message), props);
 }
 
+// The first test renders the screen cold, which took over 5s on a CI runner.
+jest.setTimeout(15_000);
+
 describe("LoginScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
