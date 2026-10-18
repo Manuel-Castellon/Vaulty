@@ -72,7 +72,7 @@ All API types are in `shared/src/types/api.ts`. Always update shared types befor
 - **Structured Observability** — All backend AI operations output JSON-structured logs to CloudWatch using a custom `log()` helper. Standardized fields include `event`, `outcome`, `provider`, `inputType`, and `durationMs` for real-time performance analytics.
 - **SAM for infrastructure** — `packages/backend/template.yaml` is the source of truth for all AWS resources.
 - **Shared types** — `@coupon/shared` is the contract between backend and frontends. Never duplicate type definitions.
-- **Auth** — AWS Cognito. Client-side auth via `amazon-cognito-identity-js` in both web and mobile (`services/auth.ts`). Backend reads JWT from `Authorization` header; `event.requestContext.authorizer?.claims?.sub` is the userId. Env vars: `VITE_COGNITO_USER_POOL_ID` / `VITE_COGNITO_CLIENT_ID` (web), `EXPO_PUBLIC_COGNITO_USER_POOL_ID` / `EXPO_PUBLIC_COGNITO_CLIENT_ID` (mobile). Values come from SAM Outputs after deploy.
+- **Auth** — AWS Cognito. Client-side auth via `aws-amplify` v6 Auth in both web and mobile (`services/auth.ts`, which keeps a small wrapper API so screens never import Amplify). Mobile stores tokens in `expo-secure-store` through a `KeyValueStorageInterface` adapter and needs the native `@aws-amplify/rtn-web-browser` for Google SSO. Backend reads JWT from `Authorization` header; `event.requestContext.authorizer?.claims?.sub` is the userId. Env vars: `VITE_COGNITO_USER_POOL_ID` / `VITE_COGNITO_CLIENT_ID` (web), `EXPO_PUBLIC_COGNITO_USER_POOL_ID` / `EXPO_PUBLIC_COGNITO_CLIENT_ID` (mobile). Values come from SAM Outputs after deploy.
 - **Image/PDF uploads** — unified mobile support via `expo-document-picker`. Clients read files as base64 (with 4MB ceiling for API Gateway limits) and send `data` + `mimeType` to the `/extract` endpoint.
 - **Platform parity** — web app and mobile app are interchangeable in features. Both support image/PDF uploads and AI extraction.
 - **Sharing model** — claimed coupons are independent copies (no cross-user references). Sharer's `shareToken` is stored on the item; a sparse GSI (`shareToken-index`) enables public lookup without scanning the full table. Public endpoint uses `Auth: Authorizer: NONE` + `publicOk` helper (`Access-Control-Allow-Origin: *`).
@@ -136,6 +136,7 @@ SAM implicit API always deploys to stage `Prod` regardless of `Stage` parameter.
 - Multi-store gift card type (post-MVP)
 - Manual on-device smoke test after next EAS build (sharing + metrics + identity display are new)
 - Cognito identity linking investigation (see Known bugs)
+- **Auth library migration to Amplify v6: code done (2026-10-18), needs deploy + new EAS build + on-device check** (see "Auth library end of support" below)
 
 ## Current Handoff (2026-04-23) — All pushed, deployed
 
@@ -195,13 +196,41 @@ Web push requires Web Push API + service workers + VAPID keys — significant co
 ### AI diligence statement
 Write a formal disclosure covering: which AI systems were used, how AI contributed to the project, the review process employed, assertion of responsibility for the final output, and any context-specific considerations (academic, professional, etc.).
 
+## Auth library end of support (deadline 2027-03-01)
+
+AWS Health notice, 2026-08-31: Amplify JS v5 (which includes `amazon-cognito-identity-js`) is in maintenance mode since 2026-09-01 and reaches end of support on 2027-03-01.
+
+**Status (2026-10-18): migrated to `aws-amplify` v6 (option 1), code and tests done, not yet shipped.** `amazon-cognito-identity-js` is removed from both packages.
+
+What changed:
+- Both `services/auth.ts` keep their exported function names; internals call Amplify (`signIn`, `signUp`, `confirmSignUp`, `resetPassword`, `signInWithRedirect`, `fetchAuthSession`). Errors get `err.code = err.name` so screens that check `err.code === "UserNotConfirmedException"` keep working; Amplify's `CONFIRM_SIGN_UP` next step is turned into that error.
+- Session carry-over: Amplify v6 reads and writes the same keys as the old library (`CognitoIdentityServiceProvider.{clientId}.{username}.*`, `...LastAuthUser`). Web uses localStorage as before; mobile uses `SecureTokenStorage` over `expo-secure-store` with the same key sanitizing. Email/password users should stay signed in. Google users sign in once more (the old flow kept only an `id_token`: `vaulty_id_token` in localStorage on web, deleted on load; in memory on mobile).
+- Google SSO now uses Amplify's code flow with PKCE and stores a refresh token, so Google sessions refresh and survive app restarts. Buttons call `signInWithGoogle()`. Web: Amplify completes the exchange when `/auth/callback` loads, and `handleAuthCallback()` waits for it. Mobile: Custom Tab via `@aws-amplify/rtn-web-browser`; the deep link still opens `app/auth/callback.tsx`, which waits for the in-flight exchange instead of exchanging the code itself. Mobile sign-in uses `preferPrivateSession` so sign-out always clears local tokens.
+- Sign-out for Google users goes through Cognito `/logout`: web lands on `/`, mobile on `vaulty://auth/signout` (`app/auth/signout.tsx` redirects to `/login`). `signOut()` waits at most 10s for Amplify, then clears tokens from the token store itself if any survived; both AuthContexts await it.
+- Refresh failures are not sign-outs: `getIdToken()` throws "Couldn't refresh your session" when a refresh fails for a transient reason (Amplify keeps the tokens), so API calls fail with that message instead of a tokenless 401. `getCurrentUserId()`/`getCurrentUserInfo()` fall back to the stored token, so offline users stay in the app. Both AuthContexts re-check on Amplify Hub `signedIn` / `signedOut` / `tokenRefresh_failure` (`onAuthChange`).
+- `RESET_PASSWORD` sign-in step becomes `PasswordResetRequiredException`; both login screens route it to forgot-password with the email prefilled (needed for the prod Cognito bulk import).
+- Mobile Google: second tap reuses the in-flight sign-in; errors before the redirect show an Alert on login (closed tab stays silent), errors after it show on the callback screen; the callback gives up after 30s, and says "interrupted" when the app was killed mid-flow. Web callback also waits for the Hub outcome (Amplify's own wait ends 5 minutes after the click).
+- Gotcha: every `Amplify.configure()` resets the token store to the default storage. Mobile calls `setKeyValueStorage(SecureTokenStorage)` right after its only configure; never configure Amplify anywhere else.
+- Known gap: Android Custom Tabs ignore `preferPrivateSession`, so if a user dismisses the logout tab, Cognito's hosted-UI cookie stays in Chrome and the next Google sign-in may skip the account chooser (relevant to the identity-split bug).
+- Tests: `sessionCarryOver.test.ts` (web and mobile) writes a session with the real old library and reads it with real Amplify `fetchAuthSession`. That is the only reason `amazon-cognito-identity-js` is still a devDependency; drop both together once no pre-upgrade installs are left.
+- `template.yaml`: added `vaulty://auth/callback` to `CallbackURLs` and `vaulty://auth/signout` to `LogoutURLs`. The callback was missing from the template even though mobile Google SSO used it; it was probably added by hand in the console (could not confirm: the local IAM user lacks `cognito-idp:DescribeUserPoolClient`). CloudFormation replaces the whole list on deploy, so any other hand-added URL is dropped.
+
+Still to do before calling it finished:
+1. Deploy the backend (pushing to `main` runs CI) so the Cognito client has both mobile URIs.
+2. New EAS build: `@aws-amplify/rtn-web-browser`, `@aws-amplify/react-native`, `@react-native-community/netinfo`, `react-native-get-random-values` are native.
+3. On-device and browser check, against the acceptance list: email/password sign-up, confirm, sign-in, forgot password, Google SSO, sign-out, each on web and Android; an existing signed-in user upgrades without a re-login and keeps the same `sub`; API calls still work after the 60-minute token lifetime (refresh).
+
+Related, from the same triage (2026-10-18), no action needed: the 2026-10-16 notice "Additive changes to Amazon Cognito tokens and OIDC metadata" does not affect Vaulty, because nothing validates token claims or OIDC metadata strictly. Keep it that way (the auth services read only `sub`, `email`, `identities` and ignore other claims).
+
+Test note: babel-preset-expo inlines `EXPO_PUBLIC_*` at transform time, so `packages/mobile/jest.setup.env.js` has no effect and those values are `undefined` in mobile tests.
+
 ## Pre-Production Checklist (before public launch)
 
 ### Known bugs (active)
 - **Cognito identity split on dual auth methods** *(unconfirmed — under investigation)*: At least one user reported signing in and seeing an empty account, as if a new user. The "account with this email already exists" guard fires correctly in most cases, so it may be a wrong-Google-account selection (phone auto-selects). To help replicate: both web and mobile now display the signed-in email + provider ("· Google") in the nav/header so users can confirm which account they're using. Root cause if real: Cognito treats email/password and Google OAuth as separate identities; fix would be a `PreSignUp` trigger calling `adminLinkProviderForUser`.
 
 ### Security gaps — acceptable for MVP, fix before public launch
-- **Web tokens in localStorage**: `amazon-cognito-identity-js` and Google SSO `id_token` (`packages/web/src/services/auth.ts:123`) are stored in localStorage. Upgrading to httpOnly cookies requires a BFF (Backend for Frontend) architecture — significant rework. Low exploitability now (no XSS surface in React), but fix before scale.
+- **Web tokens in localStorage**: Amplify's default token store (all sign-in methods, including refresh tokens) is localStorage. Upgrading to httpOnly cookies requires a BFF (Backend for Frontend) architecture — significant rework. Low exploitability now (no XSS surface in React), but fix before scale.
 - **No Content-Security-Policy header**: API Gateway doesn't send CSP headers. Add via CloudFront response headers policy.
 - **S3 images are publicly readable by URL**: `presigned-url.ts` returns a public `https://bucket.s3.amazonaws.com/{key}` URL. The UUID makes URLs hard to guess (security-by-obscurity). Post-MVP: add CloudFront signed URL flow or S3 pre-signed GET URLs.
 - **No per-user API rate limiting**: Lambda functions have no rate limiting beyond the AI extraction quota cooldown. Add WAF or API Gateway usage plans before public launch.
