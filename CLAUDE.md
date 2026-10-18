@@ -199,7 +199,7 @@ Write a formal disclosure covering: which AI systems were used, how AI contribut
 
 AWS Health notice, 2026-08-31: Amplify JS v5 (which includes `amazon-cognito-identity-js`) is in maintenance mode since 2026-09-01 and reaches end of support on 2027-03-01.
 
-**Status: done (2026-10-18).** Migrated to `aws-amplify` v6 (option 1), deployed (commits `f1529dc`, `8f58f0c`), EAS preview build `b1461a93`. Verified by hand on web and Android: email sign-up, confirm, sign-in, forgot password, Google sign-in and sign-out, session kept across the upgrade, and token refresh after the 60-minute lifetime. `amazon-cognito-identity-js` remains only as a test devDependency (see Tests below).
+**Status: done (2026-10-18).** Migrated to `aws-amplify` v6 (option 1), deployed (commits `f1529dc`, `8f58f0c`), EAS preview build `b1461a93`. Verified by hand on web and Android: email sign-up, confirm, sign-in, forgot password, Google sign-in and sign-out, session kept across the upgrade, and token refresh after the 60-minute lifetime. `amazon-cognito-identity-js` is fully removed.
 
 What changed:
 - Both `services/auth.ts` keep their exported function names; internals call Amplify (`signIn`, `signUp`, `confirmSignUp`, `resetPassword`, `signInWithRedirect`, `fetchAuthSession`). Errors get `err.code = err.name` so screens that check `err.code === "UserNotConfirmedException"` keep working; Amplify's `CONFIRM_SIGN_UP` next step is turned into that error.
@@ -211,7 +211,7 @@ What changed:
 - Mobile Google: second tap reuses the in-flight sign-in; errors before the redirect show an Alert on login (closed tab stays silent), errors after it show on the callback screen; the callback gives up after 30s, and says "interrupted" when the app was killed mid-flow. Web callback also waits for the Hub outcome (Amplify's own wait ends 5 minutes after the click).
 - Gotcha: every `Amplify.configure()` resets the token store to the default storage. Mobile calls `setKeyValueStorage(SecureTokenStorage)` right after its only configure; never configure Amplify anywhere else.
 - Known gap: Android Custom Tabs ignore `preferPrivateSession`, so if a user dismisses the logout tab, Cognito's hosted-UI cookie stays in Chrome and the next Google sign-in may skip the account chooser (relevant to the identity-split bug).
-- Tests: `sessionCarryOver.test.ts` (web and mobile) writes a session with the real old library and reads it with real Amplify `fetchAuthSession`. That is the only reason `amazon-cognito-identity-js` is still a devDependency; drop both together once no pre-upgrade installs are left.
+- Session carry-over was proven by a test that wrote a session with the real old library and read it with real Amplify; removed after on-device verification, together with the old library (see git history of `f1529dc`).
 - `template.yaml`: added `vaulty://auth/callback` to `CallbackURLs` and `vaulty://auth/signout` to `LogoutURLs`. The callback was missing from the template even though mobile Google SSO used it; it was probably added by hand in the console (could not confirm: the local IAM user lacks `cognito-idp:DescribeUserPoolClient`). CloudFormation replaces the whole list on deploy, so any other hand-added URL is dropped.
 
 Related, from the same triage (2026-10-18), no action needed: the 2026-10-16 notice "Additive changes to Amazon Cognito tokens and OIDC metadata" does not affect Vaulty, because nothing validates token claims or OIDC metadata strictly. Keep it that way (the auth services read only `sub`, `email`, `identities` and ignore other claims).

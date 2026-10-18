@@ -6,7 +6,6 @@
  *  4. Error mapping onto err.code, which the screens branch on
  *  5. Sign-out always clearing local tokens
  *  6. Google SSO: in-flight dedupe, callback wait and timeouts
- * Carry-over of old-library sessions is tested in sessionCarryOver.test.ts.
  */
 
 import { Linking } from "react-native";
