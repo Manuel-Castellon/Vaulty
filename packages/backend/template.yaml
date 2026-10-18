@@ -234,10 +234,12 @@ Resources:
         - !Sub "${WebAppUrl}/auth/callback"
         - "http://localhost:5173/auth/callback"
         - "http://localhost:3000/auth/callback"
+        - "vaulty://auth/callback" # mobile Google SSO (Amplify signInWithRedirect)
       LogoutURLs:
         - !Sub "${WebAppUrl}/"
         - "http://localhost:5173/"
         - "http://localhost:3000/"
+        - "vaulty://auth/signout" # mobile Google sign-out (Amplify signOut)
       TokenValidityUnits:
         AccessToken: minutes
         IdToken: minutes
